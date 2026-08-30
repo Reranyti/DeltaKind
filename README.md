@@ -5,3 +5,6 @@ DeltaKind — это фанатский проект, модифицирующи
 Помните что это НЕОРИГИНАЛЬНЫЙ Kristal.
 
 Ссылка на оригинальный Kristal:https://github.com/KristalTeam/Kristal?tab=readme-ov-file
+
+> **Note:** This repository is primarily intended for development and convenience and is not intended for distribution of the DeltaKind source code.
+
