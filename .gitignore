@@ -1,0 +1,13 @@
+.vscode/
+.DS_Store
+
+mods/*
+!mods/example/
+
+build/
+output/
+
+*.tiled-session
+
+docs.json
+__pycache__/
