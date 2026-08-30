@@ -21,21 +21,7 @@ function MainMenuAchievements:registerEvents()
 end
 
 function MainMenuAchievements:onEnter(old_state)
-    local data = {
-        unlocked_side_c = false,
-        unlocked_colorful = false,
-    }
-
-    if love.filesystem.getInfo("deltakind_progress.json") then
-        local ok, decoded = pcall(JSON.decode, love.filesystem.read("deltakind_progress.json"))
-        if ok and type(decoded) == "table" then
-            for k, v in pairs(decoded) do
-                data[k] = v
-            end
-        end
-    end
-
-    self.progress_data = data
+    self.progress_data = DeltaKindMeta.getActiveSlotData()
 end
 
 function MainMenuAchievements:update()

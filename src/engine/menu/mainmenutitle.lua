@@ -11,27 +11,6 @@
 ---@overload fun(menu:MainMenu) : MainMenuTitle
 local MainMenuTitle, super = Class(StateClass)
 
-local function loadDeltakindProgress()
-    local data = {
-        beat_side_a = false,
-        beat_side_b = false,
-        unlocked_side_c = false,
-        unlocked_colorful = false,
-        archive_link = "...",
-    }
-
-    if love.filesystem.getInfo("deltakind_progress.json") then
-        local ok, decoded = pcall(JSON.decode, love.filesystem.read("deltakind_progress.json"))
-        if ok and type(decoded) == "table" then
-            for k, v in pairs(decoded) do
-                data[k] = v
-            end
-        end
-    end
-
-    return data
-end
-
 function MainMenuTitle:init(menu)
     self.menu = menu
 
@@ -54,7 +33,7 @@ function MainMenuTitle:onEnter(old_state)
     self.has_target_saves = TARGET_MOD and Kristal.hasAnySaves(TARGET_MOD) or false
 
     if TARGET_MOD then
-        self.deltakind_progress = loadDeltakindProgress()
+        self.deltakind_progress = DeltaKindMeta.getActiveSlotData()
 
         self.mystery_unlocked =
             self.deltakind_progress.beat_side_a and

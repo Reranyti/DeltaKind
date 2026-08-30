@@ -1,0 +1,639 @@
+-----------------------------------------------------------
+-- MAIN MENU META SAVE
+--
+-- Три постоянных мета-слота, отдельно от обычных
+-- игровых слотов сохранения Kristal.
+-----------------------------------------------------------
+
+---@class MainMenuMetaSave : StateClass
+---@overload fun(menu:MainMenu) : MainMenuMetaSave
+local MainMenuMetaSave, super = Class(StateClass)
+
+function MainMenuMetaSave:init(menu)
+    self.menu = menu
+end
+
+function MainMenuMetaSave:registerEvents()
+    self:registerEvent("enter", self.onEnter)
+    self:registerEvent("leave", self.onLeave)
+    self:registerEvent("keypressed", self.onKeyPressed)
+    self:registerEvent("update", self.update)
+    self:registerEvent("draw", self.draw)
+end
+
+function MainMenuMetaSave:onEnter(old_state)
+    self.state = "INTRO"
+
+    -- Intro text state
+    self.intro_step = 1
+    self.intro_text = ""
+    self.intro_char = 0
+    self.intro_char_timer = 0
+    self.intro_wait = 1.0
+    self.intro_finished = false
+
+    self.selected_y = 1
+    self.selected_x = 1
+    self.focused_slot = nil
+    self.copied_slot = nil
+    self.erase_stage = 1
+    self.choice_selected = 1
+
+    self.meta_data = DeltaKindMeta.load()
+
+    -- Показываем интро только один раз.
+    if not self.meta_data.meta_intro_seen then
+        self:startIntroText(1)
+        self.menu.heart.visible = false
+    else
+        self.state = "SELECT"
+        self.menu.heart.visible = true
+    end
+
+    -- AUDIO_DRONE — музыкальный ресурс движка.
+    -- Музыка Kristal по умолчанию зацикливается.
+    if self.menu.music then
+        self.menu.music:stop()
+        self.menu.music:play("AUDIO_DRONE", 1, 1)
+    end
+
+    self:updateSelected()
+end
+
+function MainMenuMetaSave:onLeave(new_state)
+    -- Останавливаем AUDIO_DRONE при выходе из мета-экрана.
+    if self.menu.music then
+        self.menu.music:stop()
+    end
+
+    -- Возвращаем музыку обычного меню.
+    if self.menu.music and not self.menu.music:isPlaying() then
+        self.menu.music:play("mod_menu", 1, 0.95)
+    end
+end
+
+function MainMenuMetaSave:startIntroText(step)
+    self.intro_step = step
+    self.intro_text = ""
+    self.intro_char = 0
+    self.intro_char_timer = 0
+
+    -- После полного появления текста будет ровно 1 секунда
+    -- обязательного скрытого ожидания.
+    self.intro_wait = 0
+    self.intro_finished = false
+end
+
+function MainMenuMetaSave:getIntroCharacters()
+    local text = self:getIntroText()
+    local chars = {}
+
+    -- UTF-8 посимвольный разбор.
+    for char in text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+        table.insert(chars, char)
+    end
+
+    return chars
+end
+
+
+function MainMenuMetaSave:getIntroText()
+    if self.intro_step == 1 then
+        return "ВЫБЕРИТЕ..."
+    end
+
+    return "ВАШ...ПУТЬ."
+end
+
+function MainMenuMetaSave:advanceIntro()
+    if self.intro_step == 1 then
+        self:startIntroText(2)
+    else
+        self:finishIntro()
+    end
+end
+
+function MainMenuMetaSave:finishIntro()
+    self.meta_data.meta_intro_seen = true
+    DeltaKindMeta.save(self.meta_data)
+
+    self.state = "SELECT"
+
+    self.intro_step = nil
+    self.intro_text = nil
+    self.intro_char = 0
+    self.intro_char_timer = 0
+    self.intro_wait = 0
+    self.intro_finished = false
+
+    self.selected_y = 1
+    self.selected_x = 1
+
+    self.menu.heart.visible = true
+
+    self:updateSelected()
+end
+
+function MainMenuMetaSave:updateSelected()
+    if self.state ~= "SELECT"
+        and self.state ~= "COPY"
+        and self.state ~= "ERASE" then
+        return
+    end
+
+    self.menu.heart_target_x = 80
+    self.menu.heart_target_y = 135 + 90 * (self.selected_y - 1)
+
+    if self.selected_y == 4 then
+        self.menu.heart_target_x = ({ 80, 250, 440 })[self.selected_x]
+        self.menu.heart_target_y = 390
+    end
+end
+
+function MainMenuMetaSave:chooseSlot(index)
+    DeltaKindMeta.setActiveSlot(index)
+
+    self.focused_slot = nil
+    self.copied_slot = nil
+    self.choice_selected = 1
+
+    self.menu:setState("TITLE")
+    self.menu.title_screen:selectOption("play")
+end
+
+function MainMenuMetaSave:eraseSlot(index)
+    DeltaKindMeta.eraseSlot(index)
+
+    self.state = "SELECT"
+    self.focused_slot = nil
+    self.erase_stage = 1
+end
+
+function MainMenuMetaSave:onKeyPressed(key, is_repeat)
+    -- Во время интро повторное удержание клавиши ничего не делает.
+    if is_repeat then
+        return true
+    end
+
+    -----------------------------------------------------------
+    -- INTRO
+    -----------------------------------------------------------
+
+    if self.state == "INTRO" then
+        -- Пока текст печатается, Z ничего не делает.
+        if not self.intro_finished then
+            return true
+        end
+
+        -- После появления последнего символа обязательно
+        -- ждём одну секунду.
+        if self.intro_wait > 0 then
+            return true
+        end
+
+        -- Только confirm (Z) двигает сцену дальше.
+        if Input.is("confirm", key) then
+            Assets.stopAndPlaySound("ui_select")
+            self:advanceIntro()
+        end
+
+        return true
+    end
+
+    if self.focused_slot then
+        if Input.is("cancel", key) then
+            self.focused_slot = nil
+            self.choice_selected = 1
+
+            Assets.stopAndPlaySound("ui_cancel")
+            return true
+        end
+
+        if Input.is("left", key) and self.choice_selected == 2 then
+            self.choice_selected = 1
+            Assets.stopAndPlaySound("ui_move")
+
+        elseif Input.is("right", key) and self.choice_selected == 1 then
+            self.choice_selected = 2
+            Assets.stopAndPlaySound("ui_move")
+
+        elseif Input.is("confirm", key) then
+            local slot = self.focused_slot
+            local exists = self:slotExists(slot)
+
+            if self.state == "SELECT" then
+                if self.choice_selected == 1 then
+                    self:chooseSlot(slot)
+                else
+                    self.focused_slot = nil
+                end
+
+            elseif self.state == "ERASE" then
+                if self.choice_selected == 1 then
+                    DeltaKindMeta.eraseSlot(slot)
+                    self.state = "SELECT"
+                end
+
+                self.focused_slot = nil
+                self.choice_selected = 1
+
+                Assets.stopAndPlaySound(
+                    exists and "ui_spooky_action" or "ui_cancel"
+                )
+
+            elseif self.state == "COPY" then
+                if self.choice_selected == 1
+                    and self.copied_slot
+                    and self.copied_slot ~= slot then
+
+                    DeltaKindMeta.copySlot(self.copied_slot, slot)
+
+                    self.copied_slot = nil
+                    self.state = "SELECT"
+                    self.focused_slot = nil
+
+                    Assets.stopAndPlaySound("ui_spooky_action")
+                else
+                    self.focused_slot = nil
+                    self.choice_selected = 1
+                end
+            end
+        end
+
+        return true
+    end
+
+    -----------------------------------------------------------
+    -- SELECT
+    -----------------------------------------------------------
+
+    if self.state == "SELECT" then
+        if Input.is("cancel", key) then
+            self.menu:setState("TITLE")
+            self.menu.title_screen:selectOption("play")
+
+            Assets.stopAndPlaySound("ui_cancel")
+            return true
+        end
+
+        if Input.is("confirm", key) then
+            Assets.stopAndPlaySound("ui_select")
+
+            if self.selected_y <= 3 then
+                self.focused_slot = self.selected_y
+                self.choice_selected = 1
+            else
+                if self.selected_x == 1 then
+                    self.state = "COPY"
+                    self.selected_y = 1
+                    self.copied_slot = nil
+
+                elseif self.selected_x == 2 then
+                    self.state = "ERASE"
+                    self.selected_y = 1
+
+                else
+                    self.menu:setState("TITLE")
+                    self.menu.title_screen:selectOption("play")
+                end
+            end
+
+            self:updateSelected()
+            return true
+        end
+
+        local old_x, old_y = self.selected_x, self.selected_y
+
+        if Input.is("up", key) then
+            self.selected_y = self.selected_y - 1
+        end
+
+        if Input.is("down", key) then
+            self.selected_y = self.selected_y + 1
+        end
+
+        if Input.is("left", key) then
+            self.selected_x = self.selected_x - 1
+        end
+
+        if Input.is("right", key) then
+            self.selected_x = self.selected_x + 1
+        end
+
+        self.selected_y = MathUtils.clamp(self.selected_y, 1, 4)
+
+        if self.selected_y <= 3 then
+            self.selected_x = 1
+        else
+            self.selected_x = MathUtils.clamp(self.selected_x, 1, 3)
+        end
+
+        if old_x ~= self.selected_x or old_y ~= self.selected_y then
+            Assets.stopAndPlaySound("ui_move")
+            self:updateSelected()
+        end
+
+        return true
+    end
+
+    -----------------------------------------------------------
+    -- COPY
+    -----------------------------------------------------------
+
+    if self.state == "COPY" then
+        if Input.is("cancel", key) then
+            self.copied_slot = nil
+            self.state = "SELECT"
+            self.selected_y = 4
+            self.selected_x = 1
+
+            Assets.stopAndPlaySound("ui_cancel")
+            self:updateSelected()
+
+            return true
+        end
+
+        if Input.is("confirm", key) and self.selected_y <= 3 then
+            if not self.copied_slot then
+                if self:slotExists(self.selected_y) then
+                    self.copied_slot = self.selected_y
+                    Assets.stopAndPlaySound("ui_select")
+                else
+                    Assets.stopAndPlaySound("ui_cancel")
+                end
+
+            elseif self.copied_slot ~= self.selected_y then
+                self.focused_slot = self.selected_y
+                self.choice_selected = 1
+
+            else
+                Assets.stopAndPlaySound("ui_cancel")
+            end
+
+            return true
+        end
+
+        if Input.is("up", key) then
+            self.selected_y = self.selected_y - 1
+        end
+
+        if Input.is("down", key) then
+            self.selected_y = self.selected_y + 1
+        end
+
+        self.selected_y = MathUtils.clamp(self.selected_y, 1, 4)
+        self.selected_x = 1
+
+        self:updateSelected()
+
+        return true
+    end
+
+    -----------------------------------------------------------
+    -- ERASE
+    -----------------------------------------------------------
+
+    if self.state == "ERASE" then
+        if Input.is("cancel", key) then
+            self.state = "SELECT"
+            self.selected_y = 4
+            self.selected_x = 2
+
+            Assets.stopAndPlaySound("ui_cancel")
+            self:updateSelected()
+
+            return true
+        end
+
+        if Input.is("confirm", key) and self.selected_y <= 3 then
+            if self:slotExists(self.selected_y) then
+                self.focused_slot = self.selected_y
+                self.choice_selected = 1
+
+                Assets.stopAndPlaySound("ui_select")
+            else
+                Assets.stopAndPlaySound("ui_cancel")
+            end
+
+            return true
+        end
+
+        if Input.is("up", key) then
+            self.selected_y = self.selected_y - 1
+        end
+
+        if Input.is("down", key) then
+            self.selected_y = self.selected_y + 1
+        end
+
+        self.selected_y = MathUtils.clamp(self.selected_y, 1, 4)
+        self.selected_x = 1
+
+        self:updateSelected()
+
+        return true
+    end
+
+    return true
+end
+
+function MainMenuMetaSave:update()
+    if self.state == "INTRO" then
+        local chars = self:getIntroCharacters()
+
+        -- Печать текста по одному UTF-8 символу.
+        if self.intro_char < #chars then
+            self.intro_char_timer = self.intro_char_timer + DT
+
+            if self.intro_char_timer >= 0.05 then
+                self.intro_char_timer = 0
+                self.intro_char = self.intro_char + 1
+
+                local visible = {}
+
+                for i = 1, self.intro_char do
+                    visible[i] = chars[i]
+                end
+
+                self.intro_text = table.concat(visible)
+            end
+
+        elseif not self.intro_finished then
+            -- Последний символ уже появился.
+            self.intro_finished = true
+
+            -- Теперь начинается обязательная пауза.
+            self.intro_wait = 1.0
+
+        elseif self.intro_wait > 0 then
+            -- Скрытый таймер.
+            self.intro_wait = MathUtils.approach(
+                self.intro_wait,
+                0,
+                DT
+            )
+        end
+
+        return
+    end
+
+    self:updateSelected()
+end
+
+function MainMenuMetaSave:draw()
+    -----------------------------------------------------------
+    -- INTRO
+    -----------------------------------------------------------
+
+    if self.state == "INTRO" then
+        -- Полностью чёрный экран.
+        Draw.setColor(0, 0, 0, 1)
+        love.graphics.rectangle(
+            "fill",
+            0,
+            0,
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT
+        )
+
+        -- Во время INTRO отображается только текст.
+        -- Душа, курсор и интерфейс меню не рисуются.
+        Draw.setColor(1, 1, 1, 1)
+
+        if self.intro_text and self.intro_text ~= "" then
+            Draw.printShadow(
+                self.intro_text,
+                40,
+                SCREEN_HEIGHT / 2 - 20
+            )
+        end
+
+        Draw.setColor(1, 1, 1, 1)
+        return
+    end
+
+    -----------------------------------------------------------
+    -- SELECT / COPY / ERASE
+    -----------------------------------------------------------
+
+    Draw.printShadow("ВЫБЕРИТЕ...", 80, 60)
+    Draw.printShadow("ВАШ...ПУТЬ.", 80, 86)
+
+    local slots = self:getSlots()
+
+    for i = 1, 3 do
+        local y = 110 + 90 * (i - 1)
+        local selected = self.selected_y == i
+
+        Draw.setColor(
+            selected and 1 or 0.6,
+            selected and 1 or 0.6,
+            selected and 1 or 0.7,
+            1
+        )
+
+        Draw.printShadow("СЛОТ " .. i, 110, y)
+
+        Draw.printShadow(
+            self:slotExists(i) and "ПРОГРЕСС" or "ПУСТО",
+            360,
+            y
+        )
+    end
+
+    Draw.setColor(
+        self.selected_y == 4 and self.selected_x == 1 and 1 or 0.6,
+        self.selected_y == 4 and self.selected_x == 1 and 1 or 0.6,
+        self.selected_y == 4 and self.selected_x == 1 and 1 or 0.7,
+        1
+    )
+
+    Draw.printShadow("Копировать", 70, 380)
+
+    Draw.setColor(
+        self.selected_y == 4 and self.selected_x == 2 and 1 or 0.6,
+        self.selected_y == 4 and self.selected_x == 2 and 1 or 0.6,
+        self.selected_y == 4 and self.selected_x == 2 and 1 or 0.7,
+        1
+    )
+
+    Draw.printShadow("Стереть", 250, 380)
+
+    Draw.setColor(
+        self.selected_y == 4 and self.selected_x == 3 and 1 or 0.6,
+        self.selected_y == 4 and self.selected_x == 3 and 1 or 0.6,
+        self.selected_y == 4 and self.selected_x == 3 and 1 or 0.7,
+        1
+    )
+
+    Draw.printShadow("Назад", 450, 380)
+
+    -----------------------------------------------------------
+    -- FOCUSED SLOT
+    -----------------------------------------------------------
+
+    if self.focused_slot then
+        Draw.setColor(1, 1, 1, 1)
+
+        local left_text
+        local right_text
+
+        if self.state == "SELECT" then
+            left_text = self:slotExists(self.focused_slot)
+                and "Продолжить"
+                or "Начать"
+
+            right_text = "Назад"
+
+        elseif self.state == "ERASE" then
+            left_text = "Да"
+            right_text = "Нет"
+
+            Draw.printShadow(
+                "Стереть этот мета-слот?",
+                110,
+                420
+            )
+
+        elseif self.state == "COPY" then
+            left_text = "Да"
+            right_text = "Нет"
+
+            Draw.printShadow(
+                "Перезаписать этот мета-слот?",
+                110,
+                420
+            )
+        end
+
+        local left_prefix =
+            self.choice_selected == 1 and "> " or "  "
+
+        local right_prefix =
+            self.choice_selected == 2 and "> " or "  "
+
+        Draw.printShadow(
+            left_prefix .. left_text,
+            110,
+            450
+        )
+
+        Draw.printShadow(
+            right_prefix .. right_text,
+            260,
+            450
+        )
+    end
+
+    if self.copied_slot then
+        Draw.printShadow(
+            "Выбрано для копирования: " .. self.copied_slot,
+            40,
+            450
+        )
+    end
+
+    Draw.setColor(1, 1, 1, 1)
+end
+
+return MainMenuMetaSave

@@ -14,31 +14,12 @@
 ---@overload fun(menu:MainMenu) : MainMenuArchiveDialogue
 local MainMenuArchiveDialogue, super = Class(StateClass)
 
-local PROGRESS_FILE = "deltakind_progress.json"
-
 local function loadProgress()
-    local data = {
-        beat_side_a = false,
-        beat_side_b = false,
-        unlocked_side_c = false,
-        unlocked_colorful = false,
-        archive_link = "...",
-    }
-
-    if love.filesystem.getInfo(PROGRESS_FILE) then
-        local ok, decoded = pcall(JSON.decode, love.filesystem.read(PROGRESS_FILE))
-        if ok and type(decoded) == "table" then
-            for k, v in pairs(decoded) do
-                data[k] = v
-            end
-        end
-    end
-
-    return data
+    return DeltaKindMeta.getActiveSlotData()
 end
 
 local function saveProgress(data)
-    love.filesystem.write(PROGRESS_FILE, JSON.encode(data))
+    DeltaKindMeta.saveActiveSlot(data)
 end
 
 -- UTF-8-безопасные счёт символов / обрезка строки. Обычные

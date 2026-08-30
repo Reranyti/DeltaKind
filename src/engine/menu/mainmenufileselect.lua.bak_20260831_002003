@@ -108,17 +108,9 @@ function MainMenuFileSelect:onKeyPressed(key, is_repeat)
             if self.state == "SELECT" then
                 Assets.stopAndPlaySound("ui_select")
                 if button.selected_choice == 1 then
-                    -- DeltaKind всегда использует штатный экран ввода имени.
-                    -- Не позволяем глобальному skipNameEntry обходить GonerKeyboard.
-                    local is_deltakind = self.mod.id == "deltakind"
-
                     local skip_naming = button.data ~= nil
                         or self.mod.nameInput == "none" or self.mod.nameInput == false
-                        or (Kristal.Config["skipNameEntry"] and self.mod.nameInput ~= "force")
-
-                    if is_deltakind then
-                        skip_naming = false
-                    end
+                        or Kristal.Config["skipNameEntry"] and self.mod.nameInput ~= "force"
 
                     if skip_naming then
                         self:setState("TRANSITIONING")

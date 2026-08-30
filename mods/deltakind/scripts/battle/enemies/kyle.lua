@@ -401,22 +401,7 @@ function Kyle:onDefeat(damage, battler)
     -- отдельный файл вне обычных сейв-слотов (deltakind_progress.json,
     -- тот же принцип, что и settings.json движка) — это читает
     -- тайтл-скрин, чтобы решить, разблокирована ли скрытая кнопка.
-    local data = {
-        beat_side_a = false,
-        beat_side_b = false,
-        unlocked_side_c = false,
-        unlocked_colorful = false,
-        archive_link = "...",
-    }
-
-    if love.filesystem.getInfo("deltakind_progress.json") then
-        local ok, decoded = pcall(JSON.decode, love.filesystem.read("deltakind_progress.json"))
-        if ok and type(decoded) == "table" then
-            for k, v in pairs(decoded) do
-                data[k] = v
-            end
-        end
-    end
+    local data = DeltaKindMeta.getActiveSlotData()
 
     if Kristal.Config.sideB then
         data.beat_side_b = true
@@ -424,7 +409,7 @@ function Kyle:onDefeat(damage, battler)
         data.beat_side_a = true
     end
 
-    love.filesystem.write("deltakind_progress.json", JSON.encode(data))
+    DeltaKindMeta.saveActiveSlot(data)
 end
 
 function Kyle:onEnd()
