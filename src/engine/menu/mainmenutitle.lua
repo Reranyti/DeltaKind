@@ -11,6 +11,27 @@
 ---@overload fun(menu:MainMenu) : MainMenuTitle
 local MainMenuTitle, super = Class(StateClass)
 
+local function loadDeltakindProgress()
+    local data = {
+        beat_side_a = false,
+        beat_side_b = false,
+        unlocked_side_c = false,
+        unlocked_colorful = false,
+        archive_link = "...",
+    }
+
+    if love.filesystem.getInfo("deltakind_progress.json") then
+        local ok, decoded = pcall(JSON.decode, love.filesystem.read("deltakind_progress.json"))
+        if ok and type(decoded) == "table" then
+            for k, v in pairs(decoded) do
+                data[k] = v
+            end
+        end
+    end
+
+    return data
+end
+
 function MainMenuTitle:init(menu)
     self.menu = menu
 
@@ -33,11 +54,19 @@ function MainMenuTitle:onEnter(old_state)
     self.has_target_saves = TARGET_MOD and Kristal.hasAnySaves(TARGET_MOD) or false
 
     if TARGET_MOD then
+        self.deltakind_progress = loadDeltakindProgress()
+
+        self.mystery_unlocked =
+            self.deltakind_progress.beat_side_a and
+            self.deltakind_progress.beat_side_b
+
         self.options = {
-            { "play", self.has_target_saves and "Load game" or "Start game" },
-            { "options", "Options" },
-            { "credits", "Credits" },
-            { "quit", "Quit" },
+            { "play", self.has_target_saves and "Загрузить игру" or "Начать игру" },
+            { "achievements", "Достижения" },
+            { "mystery", "?????????????" },
+            { "options", "Настройки" },
+            { "credits", "Титры" },
+            { "quit", "Выход" },
         }
     else
         self.options = {
@@ -91,6 +120,19 @@ function MainMenuTitle:onKeyPressed(key, is_repeat)
                 os.execute('start /B \"\" \"' .. love.filesystem.getSaveDirectory() .. '/mods\"')
             else
                 love.system.openURL("file://" .. love.filesystem.getSaveDirectory() .. "/mods")
+            end
+
+        elseif option == "achievements" then
+            self.menu:setState("ACHIEVEMENTS")
+
+        elseif option == "mystery" then
+            if self.mystery_unlocked then
+                self.menu:setState("ARCHIVEDIALOGUE")
+            else
+                -- Заблокировано — просто звук "недоступно",
+                -- без текста (нужно пройти Кайла на сайде А
+                -- и на сайде Б).
+                Assets.stopAndPlaySound("ui_cant_select")
             end
 
         elseif option == "options" then
