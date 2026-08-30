@@ -2,7 +2,9 @@
 .DS_Store
 
 mods/*
-!mods/example/
+!mods/deltakind/
+!mods/deltakind/**
+mods/deltakind/snapshots/
 
 build/
 output/
