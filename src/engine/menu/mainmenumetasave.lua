@@ -40,14 +40,13 @@ function MainMenuMetaSave:onEnter(old_state)
     self.choice_selected = 1
 
     self.meta_data = DeltaKindMeta.load()
+    self.menu.heart.visible = false
 
     -- Показываем интро только один раз.
     if not self.meta_data.meta_intro_seen then
         self:startIntroText(1)
-        self.menu.heart.visible = false
     else
         self.state = "SELECT"
-        self.menu.heart.visible = true
     end
 
     -- AUDIO_DRONE — музыкальный ресурс движка.
@@ -61,6 +60,7 @@ function MainMenuMetaSave:onEnter(old_state)
 end
 
 function MainMenuMetaSave:onLeave(new_state)
+    self.menu.heart.visible = true
     -- Останавливаем AUDIO_DRONE при выходе из мета-экрана.
     if self.menu.music then
         self.menu.music:stop()
@@ -147,7 +147,6 @@ function MainMenuMetaSave:finishIntro()
     self.selected_y = 1
     self.selected_x = 1
 
-    self.menu.heart.visible = true
 
     self:updateSelected()
 end
@@ -198,10 +197,6 @@ function MainMenuMetaSave:onKeyPressed(key, is_repeat)
     if key == "pause" and self.state ~= "INTRO" then
         self.state = "INTRO"
         self:startIntroText(1)
-
-        if self.menu.heart then
-            self.menu.heart.visible = false
-        end
 
         Assets.stopAndPlaySound("ui_select")
 
@@ -684,7 +679,7 @@ function MainMenuMetaSave:draw()
         ----------------------------------------------------------------
 
         if selected then
-            Draw.setColor(0.10, 1.00, 0.25, 1)
+            Draw.setColor(1, 0, 0, 1)
         else
             Draw.setColor(0.03, 0.45, 0.12, 1)
         end
@@ -889,18 +884,6 @@ function MainMenuMetaSave:draw()
         end
 
         ----------------------------------------------------------------
-        -- HEART
-        ----------------------------------------------------------------
-
-        if selected then
-            Draw.setColor(0.10, 1.00, 0.25, 1)
-
-            Draw.draw(
-                heart_sprite,
-                start_x - 26,
-                y + 29
-            )
-        end
     end
 
     ----------------------------------------------------------------
@@ -1000,7 +983,7 @@ function MainMenuMetaSave:draw()
         local option_y = py + 48
 
         if self.choice_selected == 1 then
-            Draw.setColor(0.10, 1.00, 0.25, 1)
+            Draw.setColor(1, 0, 0, 1)
 
             Draw.draw(
                 heart_sprite,

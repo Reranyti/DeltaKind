@@ -116,6 +116,8 @@ function MainMenu:enter()
 
     if #Kristal.Mods.failed_mods > 0 then
         self:setState("MODERROR")
+    elseif TARGET_MOD == "deltakind" then
+        self:setState("METASAVE")
     else
         self:setState("TITLE")
     end
