@@ -195,15 +195,42 @@ function Mod:registerDebugOptions(debug)
     debug:registerOption(
         "deltakind_sideb_debug",
         "Force Kyle Phase 2",
-        "Опустить HP Кайла до 50% -- дальше сработает обычный переход из Kyle:update().",
+        "Явно переводит Кайла на фазу 2 (вызывает полную цепочку: исчезновение партии, блокировка актов, переход музыки и т.д.). Это НЕМЕДЛЕННЫЙ переход, а не просто опускание HP.",
         function()
             local kyle = getKyle()
-            if kyle then
-                kyle.health = MathUtils.round(kyle.max_health * 0.5)
+            if kyle and kyle.phase == 1 then
+                kyle.phase = 2
+                if Game.music.current ~= "knight_phase2" then
+                    Game.music:stop()
+                    Game.music:play("knight_phase2")
+                end
+                kyle:flash()
+                Game.battle:shake(6)
+                if Kristal.Config.sideB then
+                    kyle.attack = kyle.attack + 125
+                else
+                    kyle.attack = kyle.attack + 100
+                end
+                Game.battle:setEncounterText(
+                    "* Кайл сбросил оковы!\n" ..
+                    "* Грядёт Лазерный Фонтан!"
+                )
+                if Kristal.Config.sideB then
+                    kyle:vanishSideBPartyMember("susie")
+                    kyle:vanishSideBPartyMember("ralsei")
+                    for _, act in ipairs(kyle.acts) do
+                        if act.name == "Поддержка С"
+                        or act.name == "Поддержка Р" then
+                            act.hidden = true
+                        end
+                    end
+                end
+                print("[DEBUG] Kyle Phase 2 transition forced.")
+            else
+                print("[DEBUG] Kyle is not in Phase 1 or not found in battle.")
             end
         end,
         inKyleBattle
-    )
 
     debug:registerOption(
         "deltakind_sideb_debug",
