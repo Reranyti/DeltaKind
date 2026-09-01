@@ -78,6 +78,16 @@ function Kyle:init()
     --
     -- Оставляем отдельный список, если потом захочешь
     -- сделать именно отдельные hell-атаки.
+    --
+    -- SIDE B TODO (раздел 24, 43 канона): "Во второй фазе
+    -- атаки должны стать сложнее", НО конкретный коэффициент
+    -- НЕ утверждён -- ×1.5 был явно ОТКЛОНЁН автором как
+    -- самостоятельно придуманный. Здесь сложность НЕ изменена
+    -- относительно уже существующей getDifficultyMultiplier()
+    -- (она масштабируется по % HP Кайла, не по фазе, и это
+    -- существовавшая ДО этой сессии логика, не новая
+    -- выдумка). OrangeWall прямо исключён из доработок
+    -- (раздел 25) -- трогать не нужно.
     -------------------------------------------------------
 
     self.hell_waves = {
@@ -345,6 +355,28 @@ function Kyle:init()
         "ralsei",
         490
     )
+
+    -------------------------------------------------------
+    -- SIDE B: "НАДЕТЬ" (раздел 11 канона)
+    --
+    -- Скрыт по умолчанию (act.hidden = true). Становится
+    -- единственным видимым ACT, когда запускается сценарий
+    -- "Надень" (см. Kyle:setSideBActFilter).
+    -- Ограничен персонажем "kris" (раздел 12: меч доступен
+    -- только Крису).
+    -------------------------------------------------------
+
+    self.act_wear = self:registerAct(
+        "Надеть",
+        "Наденьте\nИскажённый меч.",
+        nil,
+        0
+    )
+    self.act_wear.character = "kris"
+    self.act_wear.hidden = true
+
+    self.side_b_intro_played = false
+    self.side_b_force_act_only = false
 end
 
 -----------------------------------------------------------
@@ -388,6 +420,381 @@ function Kyle:onBattleStart()
 
     self.current_wave = nil
     self.current_variation = nil
+end
+
+-----------------------------------------------------------
+-- SIDE B: ВСТУПИТЕЛЬНЫЙ МОНОЛОГ КАЙЛА (раздел 10.1)
+--
+-- Текст реплик находится в:
+--   scripts/battle/cutscenes/kyle.lua -> side_b_intro
+--
+-- TODO (НЕ КАНОН, требует решения автора):
+--   Момент вызова этой сцены (после какой фазы / какого HP-порога
+--   у Кайла или у Криса она должна начинаться) не указан в
+--   мастер-контексте. Раздел 15 говорит только, что кнопка
+--   "Продолжай" появляется при HP Криса <= 600 -- это уже ПОСЛЕ
+--   монолога, "Надень" и надевания меча, а не сам триггер монолога.
+--
+-- Пока эта функция вызывается вручную (например, из консоли
+-- отладки Kristal: `Game.battle.enemies[1]:triggerSideBIntro()`)
+-- и НЕ подключена автоматически ни к одному игровому событию.
+-----------------------------------------------------------
+
+function Kyle:triggerSideBIntro()
+
+    if not Kristal.Config.sideB then
+        return
+    end
+
+    if self.side_b_intro_played then
+        return
+    end
+
+    self.side_b_intro_played = true
+
+    Game.battle:startCutscene(
+        "kyle",
+        "side_b_intro"
+    )
+end
+
+-----------------------------------------------------------
+-- SIDE B: ФИЛЬТРАЦИЯ ACT-МЕНЮ ДЛЯ "НАДЕНЬ" (раздел 11)
+--
+-- active = true  -> виден только акт "Надеть" (только для Криса);
+--                    кнопки Криса ограничиваются одним "Акт"
+--                    через Mod:getActionButtons в mod.lua.
+-- active = false -> обычный список актов / обычные кнопки.
+--
+-- Согласно разделу 23/43 канона, это ВРЕМЕННАЯ фильтрация
+-- (act.hidden), а не необратимое удаление через table.remove.
+--
+-- ПРЕДПОЛОЖЕНИЕ: канон не говорит, ограничиваются ли также
+-- кнопки Сьюзи/Ральзея в этот момент (раздел 11 упоминает
+-- только замену кнопок в общем, без указания, что это только
+-- Крис). Реализовано так: ограничивается ТОЛЬКО Крис, так как
+-- именно ему адресовано "Надень" (раздел 12: меч доступен
+-- только Крису). Если это неверно -- нужно скорректировать
+-- Mod:getActionButtons в mod.lua.
+-----------------------------------------------------------
+
+function Kyle:setSideBActFilter(active)
+
+    for _, act in ipairs(self.acts) do
+
+        if act.name == "Надеть" then
+            act.hidden = not active
+        elseif act.name ~= "Надеть" then
+            act.hidden = active or false
+        end
+    end
+
+    self.side_b_force_act_only = active
+
+    ---------------------------------------------------
+    -- Пересоздаём кнопки Криса, чтобы изменение
+    -- вступило в силу немедленно (ActionBox создаётся
+    -- один раз на бой и не обновляется автоматически).
+    ---------------------------------------------------
+
+    if Game.battle
+    and Game.battle.battle_ui
+    and Game.battle.battle_ui.action_boxes then
+
+        for _, box in ipairs(
+            Game.battle.battle_ui.action_boxes
+        ) do
+
+            if box.battler
+            and box.battler.chara.id == "kris" then
+                box:createButtons()
+            end
+        end
+    end
+end
+
+-----------------------------------------------------------
+-- SIDE B: ПОЛНАЯ БЛОКИРОВКА КНОПОК (раздел 14 канона)
+--
+-- "теперь. ПРОДОЛЖАЙ." -> Кайл блокирует ВСЕ кнопки, для
+-- всей группы, а не только для Криса.
+--
+-- ПРЕДПОЛОЖЕНИЕ: "заблокированы" реализовано как ПОЛНОЕ
+-- отсутствие кнопок (Mod:getActionButtons возвращает пустую
+-- таблицу для любого battler, пока флаг активен). Канон не
+-- уточняет, должна ли коробка действий вообще исчезать
+-- визуально или просто быть пустой -- оставлено как пустой
+-- список кнопок, чтобы не выдумывать отсутствующую механику
+-- (например, отдельную иконку "замка").
+-----------------------------------------------------------
+
+function Kyle:setSideBButtonsLocked(locked)
+
+    self.side_b_buttons_locked = locked
+
+    if Game.battle
+    and Game.battle.battle_ui
+    and Game.battle.battle_ui.action_boxes then
+
+        for _, box in ipairs(
+            Game.battle.battle_ui.action_boxes
+        ) do
+            box:createButtons()
+        end
+    end
+end
+
+-----------------------------------------------------------
+-- SIDE B: СЮЖЕТНОЕ ИСЧЕЗНОВЕНИЕ (раздел 21-22 канона)
+--
+-- НЕ вызывает battler:down() (метод) -- см. раздел 22: сам
+-- МЕТОД down() тянет за собой анимацию поражения, возможную
+-- revival-логику и т.д. Вместо этого поле is_down выставляется
+-- НАПРЯМУЮ, без вызова метода.
+--
+-- ПРОВЕРЕНО ЧТЕНИЕМ ДВИЖКА (не предположение):
+--   - Battle:checkGameOver() (battle.lua:2556) требует, чтобы
+--     ВСЕ party.is_down были true -- значит, пока Крис активен,
+--     game over не сработает от одних Сьюзи/Ральзея.
+--   - Battle:isActive() / nextParty() / selectNextActive()
+--     (battle.lua:2391-2498) читают is_down через isActive() --
+--     значит, очередь хода их пропускает.
+--   - Battle:getActiveParty() (battle.lua:3204) фильтрует
+--     ИМЕННО по is_down -- значит, таргетинг атак противника
+--     (случайный выбор цели) их тоже исключает.
+--   - Уже выбранный экшен (если Phase 2 наступила посреди
+--     выбора хода) снимается через Battle:removeAction(index)
+--     (battle.lua:1873) -- существующий метод движка, не
+--     самодельный.
+-----------------------------------------------------------
+
+function Kyle:vanishSideBPartyMember(id)
+
+    local pb = Game.battle:getPartyBattler(id)
+
+    if not pb then
+        return
+    end
+
+    local index = Game.battle:getPartyIndex(id)
+
+    if index and Game.battle:hasAction(index) then
+        Game.battle:removeAction(index)
+    end
+
+    ---------------------------------------------------
+    -- RUNTIME CRASH FIX (battle.lua:3713, найдено по
+    -- реальному стектрейсу):
+    --
+    -- Battle:handleAttackingInput() (battle.lua:3688-3721)
+    -- работает НЕ по self.character_actions, а по отдельному
+    -- списку self.battle_ui.attack_boxes -- визуальным
+    -- AttackBox-объектам ATTACKING-состояния (полоска
+    -- ритм-мини-игры FIGHT). Battle:removeAction() выше
+    -- чистит только self.character_actions -- AttackBox
+    -- битвы остаётся жив и всё ещё реагирует на Input.
+    -- Когда игрок жмёт подтверждение, handleAttackingInput
+    -- находит этот box, вызывает
+    -- self:getActionBy(attack.battler, true), получает nil
+    -- (экшен уже удалён выше) и падает на
+    -- `action.points = points`.
+    --
+    -- ИСПРАВЛЕНИЕ (по реальному API движка, не костыль):
+    -- находим AttackBox этого battler'а в
+    -- battle_ui.attack_boxes и убираем его -- тем же
+    -- способом, каким это делает сам движок при обычном
+    -- завершении атаки (BattleUI:beginAttack(), строки
+    -- 107-109: `box:remove()` + пересборка массива).
+    ---------------------------------------------------
+
+    if Game.battle.battle_ui
+    and Game.battle.battle_ui.attack_boxes then
+
+        local remaining = {}
+
+        for _, box in ipairs(
+            Game.battle.battle_ui.attack_boxes
+        ) do
+            if box.battler == pb then
+                box:remove()
+            else
+                table.insert(remaining, box)
+            end
+        end
+
+        Game.battle.battle_ui.attack_boxes = remaining
+    end
+
+    -- То же самое семейство бага: если Phase 2 наступила
+    -- ДО того, как этот battler успел атаковать (box ещё не
+    -- hit), он может всё ещё числиться в self.attackers /
+    -- self.normal_attackers / self.auto_attackers -- эти
+    -- списки движок сам чистит через TableUtils.removeValue
+    -- при обычном завершении атаки (battle.lua:1397-1398),
+    -- воспроизводим тот же паттерн.
+    if Game.battle.attackers then
+        TableUtils.removeValue(Game.battle.attackers, pb)
+    end
+    if Game.battle.normal_attackers then
+        TableUtils.removeValue(Game.battle.normal_attackers, pb)
+    end
+    if Game.battle.auto_attackers then
+        TableUtils.removeValue(Game.battle.auto_attackers, pb)
+    end
+
+    pb.visible = false
+    pb.deltakind_vanished = true
+    pb.is_down = true
+
+    if Game.battle.battle_ui
+    and Game.battle.battle_ui.action_boxes then
+
+        for _, box in ipairs(
+            Game.battle.battle_ui.action_boxes
+        ) do
+            if box.battler == pb then
+                box.visible = false
+            end
+        end
+    end
+
+    ---------------------------------------------------
+    -- RUNTIME CRASH FIX #2 (actionbox.lua:172, найдено по
+    -- реальному стектрейсу):
+    --
+    -- Battle:handleActionSelectInput() (battle.lua:3645-3685)
+    -- берёт ActionBox НАПРЯМУЮ по индексу:
+    --   local actbox = self.battle_ui.action_boxes[self.current_selecting]
+    -- Если current_selecting в этот момент указывает именно
+    -- на исчезающего battler'а, его ActionBox теперь имеет 0
+    -- кнопок (Mod:getActionButtons в mod.lua возвращает {}
+    -- для deltakind_vanished) -- ActionBox:select()
+    -- (actionbox.lua:170-173) делает
+    -- `buttons[self.selected_button]:select()`, а buttons
+    -- пустой -> nil -> краш.
+    --
+    -- ИСПРАВЛЕНИЕ ЧЕРЕЗ ШТАТНЫЙ МЕХАНИЗМ, А НЕ `if action
+    -- then`: Battle:nextParty() (battle.lua:2391-2421) -- это
+    -- ТА ЖЕ функция, которую движок сам вызывает, когда игрок
+    -- обычным способом переходит к следующему невыбравшему
+    -- действие battler'у. Она уже содержит корректную логику
+    -- "пропустить неактивных" (через isActive(), которую
+    -- is_down = true выше как раз и переключает) и, если
+    -- выбирать больше некому, сама вызывает
+    -- Battle:startProcessing() -- то есть round пойдёт в
+    -- обработку, если, например, Крис уже выбрал действие, а
+    -- выбирать стало больше некому.
+    --
+    -- ОДИН ПОБОЧНЫЙ ЭФФЕКТ nextParty(), который пришлось
+    -- дополнительно поправить: она пушит СТАРЫЙ
+    -- current_selecting (то есть индекс исчезающего battler'а)
+    -- в self.selected_character_stack как точку возврата для
+    -- Cancel. Если это оставить, игрок через Cancel сможет
+    -- вернуться на скрытого battler'а и снова словить тот же
+    -- краш в ActionBox:select(). Поэтому сразу после
+    -- nextParty() эта конкретная запись (и парная запись в
+    -- selected_action_stack) снимается -- остальная история
+    -- навигации не трогается.
+    --
+    -- ОБЛАСТЬ ПРИМЕНЕНИЯ (честно): проверен и исправлен
+    -- именно путь ACTIONSELECT (это единственное состояние,
+    -- где репортился краш). MENUSELECT/PARTYSELECT (выбор
+    -- цели для ACT/предмета/заклинания) читают
+    -- current_selecting по-другому и НЕ проверялись -- если
+    -- краш всплывёт там, это отдельная задача.
+    ---------------------------------------------------
+
+    if Game.battle:getState() == "ACTIONSELECT"
+    and Game.battle.current_selecting == index then
+
+        Game.battle:nextParty()
+
+        local char_stack = Game.battle.selected_character_stack
+        local action_stack = Game.battle.selected_action_stack
+
+        if char_stack[#char_stack] == index then
+            table.remove(char_stack, #char_stack)
+            table.remove(action_stack, #action_stack)
+        end
+    end
+end
+
+-----------------------------------------------------------
+-- SIDE B: ЗАПУСК CONTINUE-ПОСЛЕДОВАТЕЛЬНОСТИ (раздел 15+)
+-----------------------------------------------------------
+
+function Kyle:onSideBContinueThreshold()
+
+    if Game.battle:hasCutscene() then
+        return
+    end
+
+    Game.battle:startCutscene(
+        "kyle",
+        "side_b_continue_resist"
+    )
+end
+
+-----------------------------------------------------------
+-- SIDE B: УСПЕШНЫЙ ИСХОД QTE (разделы 18-19 канона)
+--
+-- "При хорошем прохождении Крис выживает. Side B сейв
+-- удаляется. Флаг прохождения засчитывается. Финальная
+-- надпись: ГОТОВА!"
+--
+-- ПРЕДПОЛОЖЕНИЯ (не КАНОН):
+--   1. "Сейв Side B удаляется" реализовано как стирание
+--      активного мета-слота через DeltaKindMeta.eraseSlot
+--      (тот же метод, что уже используется в debug-меню
+--      mod.lua). Канон не уточняет, весь ли мета-слот
+--      стирается, или только какая-то часть прогресса -- взял
+--      самую буквальную трактовку "сейв удаляется".
+--   2. "ГОТОВА!" показана как обычный battleText без цвета/
+--      анимации -- канон не описывает конкретное оформление.
+--   3. После надписи бой завершается через
+--      Battle:returnToWorld() (реальный метод движка) -- канон
+--      не говорит, что происходит с игрой ПОСЛЕ "ГОТОВА!"
+--      (обратно в мир? на титульный экран?). Возврат в мир --
+--      самый безопасный вариант, не ломающий обычный игровой
+--      цикл, но это ПРЕДПОЛОЖЕНИЕ.
+-----------------------------------------------------------
+
+function Kyle:onSideBQteSuccess()
+
+    -----------------------------------------------------------
+    -- ИСПРАВЛЕНИЕ ПРЕДПОЛОЖЕНИЯ: изначально здесь также
+    -- вызывался DeltaKindMeta.eraseSlot(...), что СТИРАЛО бы
+    -- именно тот флаг beat_side_b, который нужно сохранить --
+    -- противоречие с "флаг прохождения засчитывается". Судя по
+    -- разделу 3 канона, DeltaKindMeta -- это именно хранилище
+    -- флага прохождения, а "сейв Side B" (раздел 18) -- скорее
+    -- всего ОТДЕЛЬНЫЙ обычный игровой сейв (Kristal save file),
+    -- а не мета-слот. Удаление обычного сейва НЕ реализовано
+    -- здесь -- я не нашёл/не проверил точный API для этого в
+    -- рамках этой сессии, а стирать наугад не хочу, чтобы не
+    -- уничтожить прогресс по ошибке. TODO: подтвердить, что
+    -- именно должно быть удалено, и каким методом.
+    -----------------------------------------------------------
+
+    local data = DeltaKindMeta.getActiveSlotData()
+    data.beat_side_b = true
+    DeltaKindMeta.saveActiveSlot(data)
+
+    if Kristal.modCall then
+        Kristal.modCall("onDeltaKindEvent", "side_b_cleared")
+    end
+
+    if self.setSideBButtonsLocked then
+        self:setSideBButtonsLocked(false)
+    end
+
+    Game.battle:battleText(
+        "ГОТОВА!",
+        function()
+            Game.battle:returnToWorld()
+            return true
+        end
+    )
 end
 
 -----------------------------------------------------------
@@ -464,6 +871,72 @@ function Kyle:update()
             "* Кайл сбросил оковы!\n" ..
             "* Грядёт Лазерный Фонтан!"
         )
+
+        -------------------------------------------------
+        -- SIDE B: раздел 21 -- во 2 фазе Сьюзи и Ральзей
+        -- исчезают сюжетно, Крис остаётся один. Раздел 22:
+        -- НЕ используем down() (это боевое поражение) --
+        -- используем отдельный флаг/скрытие.
+        -- Раздел 23: Поддержка С/Р скрываются (временная
+        -- фильтрация act.hidden), Поддержка К остаётся.
+        -------------------------------------------------
+
+        if Kristal.Config.sideB then
+
+            self:vanishSideBPartyMember("susie")
+            self:vanishSideBPartyMember("ralsei")
+
+            for _, act in ipairs(self.acts) do
+                if act.name == "Поддержка С"
+                or act.name == "Поддержка Р" then
+                    act.hidden = true
+                end
+            end
+        end
+    end
+
+    -------------------------------------------------------
+    -- SIDE B: ЗАПУСК ВСТУПИТЕЛЬНОГО МОНОЛОГА (по решению
+    -- автора: при 25% HP Кайла).
+    -------------------------------------------------------
+
+    if Kristal.Config.sideB
+    and not self.side_b_intro_played
+    and self.health <= (self.max_health * 0.25)
+    and not Game.battle:hasCutscene() then
+
+        self:triggerSideBIntro()
+    end
+
+    -------------------------------------------------------
+    -- SIDE B: ПОРОГ 600 HP (раздел 15 канона)
+    --
+    -- "Когда у Криса остаётся 600 HP или меньше появляется
+    -- кнопка Продолжай."
+    --
+    -- Здесь определяется только МОМЕНТ пересечения порога.
+    -- Сама кнопка "Продолжай" и последующий диалог (раздел 15:
+    -- "Ты должен будешь сказать эти слова...", 4 сопротивления
+    -- Криса) -- это отдельная система (пункт плана "Continue-
+    -- система"), ЕЩЁ НЕ РЕАЛИЗОВАНА. Kyle:onSideBContinueThreshold
+    -- пока ничего не делает и служит точкой подключения.
+    -------------------------------------------------------
+
+    if self.side_b_buttons_locked
+    and not self.side_b_continue_threshold_hit then
+
+        local kris =
+            Game.battle:getPartyBattler(
+                "kris"
+            )
+
+        if kris
+        and kris.chara:getHealth() <= 600 then
+
+            self.side_b_continue_threshold_hit = true
+
+            self:onSideBContinueThreshold()
+        end
     end
 
     -------------------------------------------------------
@@ -1122,6 +1595,27 @@ function Kyle:onAct(
             txt ..
             "* Барьер активирован!"
         }
+
+    -------------------------------------------------------
+    -- SIDE B: "НАДЕТЬ" (разделы 11-14 канона)
+    --
+    -- Логика надевания меча + "теперь. ПРОДОЛЖАЙ." + полная
+    -- блокировка кнопок вынесена в cutscene
+    -- scripts/battle/cutscenes/kyle.lua -> side_b_wear
+    -- (запускается через Battle:startActCutscene, см. пример
+    -- в mod_template/scripts/battle/enemies/dummy.lua).
+    -- ATK+16 и утечка 1 HP/сек реализованы В ПРЕДМЕТЕ
+    -- (scripts/data/items/twistedswd.lua), не здесь.
+    -------------------------------------------------------
+
+    elseif name == "Надеть" then
+
+        Game.battle:startActCutscene(
+            "kyle",
+            "side_b_wear"
+        )
+
+        return
     end
 
     return super.onAct(

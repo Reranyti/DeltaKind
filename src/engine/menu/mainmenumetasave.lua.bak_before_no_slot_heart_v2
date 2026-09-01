@@ -1,0 +1,1027 @@
+-----------------------------------------------------------
+-- MAIN MENU META SAVE
+--
+-- Три постоянных мета-слота, отдельно от обычных
+-- игровых слотов сохранения Kristal.
+-----------------------------------------------------------
+
+---@class MainMenuMetaSave : StateClass
+---@overload fun(menu:MainMenu) : MainMenuMetaSave
+local MainMenuMetaSave, super = Class(StateClass)
+
+function MainMenuMetaSave:init(menu)
+    self.menu = menu
+end
+
+function MainMenuMetaSave:registerEvents()
+    self:registerEvent("enter", self.onEnter)
+    self:registerEvent("leave", self.onLeave)
+    self:registerEvent("keypressed", self.onKeyPressed)
+    self:registerEvent("update", self.update)
+    self:registerEvent("draw", self.draw)
+end
+
+function MainMenuMetaSave:onEnter(old_state)
+    self.state = "INTRO"
+
+    -- Intro text state
+    self.intro_step = 1
+    self.intro_text = ""
+    self.intro_char = 0
+    self.intro_char_timer = 0
+    self.intro_wait = 1.0
+    self.intro_finished = false
+
+    self.selected_y = 1
+    self.selected_x = 1
+    self.focused_slot = nil
+    self.copied_slot = nil
+    self.erase_stage = 1
+    self.choice_selected = 1
+
+    self.meta_data = DeltaKindMeta.load()
+
+    -- Показываем интро только один раз.
+    if not self.meta_data.meta_intro_seen then
+        self:startIntroText(1)
+        self.menu.heart.visible = false
+    else
+        self.state = "SELECT"
+        self.menu.heart.visible = true
+    end
+
+    -- AUDIO_DRONE — музыкальный ресурс движка.
+    -- Музыка Kristal по умолчанию зацикливается.
+    if self.menu.music then
+        self.menu.music:stop()
+        self.menu.music:play("AUDIO_DRONE", 1, 1)
+    end
+
+    self:updateSelected()
+end
+
+function MainMenuMetaSave:onLeave(new_state)
+    -- Останавливаем AUDIO_DRONE при выходе из мета-экрана.
+    if self.menu.music then
+        self.menu.music:stop()
+    end
+
+    -- Возвращаем музыку обычного меню.
+    if self.menu.music and not self.menu.music:isPlaying() then
+        self.menu.music:play("mod_menu", 1, 0.95)
+    end
+end
+
+function MainMenuMetaSave:startIntroText(step)
+    self.intro_step = step
+    self.intro_text = ""
+    self.intro_char = 0
+    self.intro_char_timer = 0
+
+    -- После полного появления текста будет ровно 1 секунда
+    -- обязательного скрытого ожидания.
+    self.intro_wait = 0
+    self.intro_finished = false
+end
+
+function MainMenuMetaSave:getIntroCharacters()
+    local text = self:getIntroText()
+    local chars = {}
+
+    -- UTF-8 посимвольный разбор.
+    for char in text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+        table.insert(chars, char)
+    end
+
+    return chars
+end
+
+
+function MainMenuMetaSave:getIntroText()
+    if self.intro_step == 1 then
+        return "\"ВЫБЕРИТЕ...\""
+    end
+
+    return "\"ВАШ...ПУТЬ.\""
+end
+
+function MainMenuMetaSave:getSlots()
+    local data = DeltaKindMeta.load()
+    return data.slots
+end
+
+function MainMenuMetaSave:slotExists(index)
+    local slot = self:getSlots()[index]
+    if type(slot) ~= "table" then
+        return false
+    end
+
+    return slot.beat_side_a
+        or slot.beat_side_b
+        or slot.unlocked_side_c
+        or slot.unlocked_colorful
+        or (slot.archive_link and slot.archive_link ~= "...")
+end
+
+function MainMenuMetaSave:advanceIntro()
+    if self.intro_step == 1 then
+        self:startIntroText(2)
+    else
+        self:finishIntro()
+    end
+end
+
+function MainMenuMetaSave:finishIntro()
+    self.meta_data.meta_intro_seen = true
+    DeltaKindMeta.save(self.meta_data)
+
+    self.state = "SELECT"
+
+    self.intro_step = nil
+    self.intro_text = nil
+    self.intro_char = 0
+    self.intro_char_timer = 0
+    self.intro_wait = 0
+    self.intro_finished = false
+
+    self.selected_y = 1
+    self.selected_x = 1
+
+    self:updateSelected()
+end
+
+function MainMenuMetaSave:updateSelected()
+    if self.state ~= "SELECT"
+        and self.state ~= "COPY"
+        and self.state ~= "ERASE" then
+        return
+    end
+
+    -- В Meta Save используется собственное зелёное сердце,
+    -- нарисованное для выбранного слота в draw().
+    -- Штатное сердце MainMenu здесь не используется.
+    self.menu.heart.visible = false
+end
+
+function MainMenuMetaSave:chooseSlot(index)
+    DeltaKindMeta.setActiveSlot(index)
+
+    self.focused_slot = nil
+    self.copied_slot = nil
+    self.choice_selected = 1
+
+    self.menu:setState("TITLE")
+    self.menu.title_screen:selectOption("play")
+end
+
+function MainMenuMetaSave:eraseSlot(index)
+    DeltaKindMeta.eraseSlot(index)
+
+    self.state = "SELECT"
+    self.focused_slot = nil
+    self.erase_stage = 1
+end
+
+function MainMenuMetaSave:onKeyPressed(key, is_repeat)
+    -- Во время интро повторное удержание клавиши ничего не делает.
+    if is_repeat then
+        return true
+    end
+
+    -- Скрытая кнопка: повторить INTRO по Pause.
+    -- Не меняет meta_intro_seen и не отображается в интерфейсе.
+    if key == "pause" and self.state ~= "INTRO" then
+        self.state = "INTRO"
+        self:startIntroText(1)
+
+        if self.menu.heart then
+            self.menu.heart.visible = false
+        end
+
+        Assets.stopAndPlaySound("ui_select")
+
+        return true
+    end
+
+    -----------------------------------------------------------
+    -- INTRO
+    -----------------------------------------------------------
+
+    if self.state == "INTRO" then
+        -- Пока текст печатается, Z ничего не делает.
+        if not self.intro_finished then
+            return true
+        end
+
+        -- После появления последнего символа обязательно
+        -- ждём одну секунду.
+        if self.intro_wait > 0 then
+            return true
+        end
+
+        -- Только confirm (Z) двигает сцену дальше.
+        if Input.is("confirm", key) then
+            self:advanceIntro()
+        end
+
+        return true
+    end
+
+    if self.focused_slot then
+        if Input.is("cancel", key) then
+            self.focused_slot = nil
+            self.choice_selected = 1
+
+            Assets.stopAndPlaySound("ui_cancel")
+            return true
+        end
+
+        if Input.is("left", key) and self.choice_selected == 2 then
+            self.choice_selected = 1
+            Assets.stopAndPlaySound("ui_move")
+
+        elseif Input.is("right", key) and self.choice_selected == 1 then
+            self.choice_selected = 2
+            Assets.stopAndPlaySound("ui_move")
+
+        elseif Input.is("confirm", key) then
+            local slot = self.focused_slot
+            local exists = self:slotExists(slot)
+
+            if self.state == "SELECT" then
+                if self.choice_selected == 1 then
+                    self:chooseSlot(slot)
+                else
+                    self.focused_slot = nil
+                end
+
+            elseif self.state == "ERASE" then
+                if self.choice_selected == 1 then
+                    DeltaKindMeta.eraseSlot(slot)
+                    self.state = "SELECT"
+                end
+
+                self.focused_slot = nil
+                self.choice_selected = 1
+
+                Assets.stopAndPlaySound(
+                    exists and "ui_spooky_action" or "ui_cancel"
+                )
+
+            elseif self.state == "COPY" then
+                if self.choice_selected == 1
+                    and self.copied_slot
+                    and self.copied_slot ~= slot then
+
+                    DeltaKindMeta.copySlot(self.copied_slot, slot)
+
+                    self.copied_slot = nil
+                    self.state = "SELECT"
+                    self.focused_slot = nil
+
+                    Assets.stopAndPlaySound("ui_spooky_action")
+                else
+                    self.focused_slot = nil
+                    self.choice_selected = 1
+                end
+            end
+        end
+
+        return true
+    end
+
+    -----------------------------------------------------------
+    -- SELECT
+    -----------------------------------------------------------
+
+    if self.state == "SELECT" then
+        if Input.is("cancel", key) then
+            self.menu:setState("TITLE")
+            self.menu.title_screen:selectOption("play")
+
+            Assets.stopAndPlaySound("ui_cancel")
+            return true
+        end
+
+        if Input.is("confirm", key) then
+            Assets.stopAndPlaySound("ui_select")
+
+            if self.selected_y <= 3 then
+                self.focused_slot = self.selected_y
+                self.choice_selected = 1
+            else
+                if self.selected_x == 1 then
+                    self.state = "COPY"
+                    self.selected_y = 1
+                    self.copied_slot = nil
+
+                elseif self.selected_x == 2 then
+                    self.state = "ERASE"
+                    self.selected_y = 1
+
+                else
+                    self.menu:setState("TITLE")
+                    self.menu.title_screen:selectOption("play")
+                end
+            end
+
+            self:updateSelected()
+            return true
+        end
+
+        local old_x, old_y = self.selected_x, self.selected_y
+
+        if Input.is("up", key) then
+            self.selected_y = self.selected_y - 1
+        end
+
+        if Input.is("down", key) then
+            self.selected_y = self.selected_y + 1
+        end
+
+        if Input.is("left", key) then
+            self.selected_x = self.selected_x - 1
+        end
+
+        if Input.is("right", key) then
+            self.selected_x = self.selected_x + 1
+        end
+
+        self.selected_y = MathUtils.clamp(self.selected_y, 1, 4)
+
+        if self.selected_y <= 3 then
+            self.selected_x = 1
+        else
+            self.selected_x = MathUtils.clamp(self.selected_x, 1, 3)
+        end
+
+        if old_x ~= self.selected_x or old_y ~= self.selected_y then
+            Assets.stopAndPlaySound("ui_move")
+            self:updateSelected()
+        end
+
+        return true
+    end
+
+    -----------------------------------------------------------
+    -- COPY
+    -----------------------------------------------------------
+
+    if self.state == "COPY" then
+        if Input.is("cancel", key) then
+            self.copied_slot = nil
+            self.state = "SELECT"
+            self.selected_y = 4
+            self.selected_x = 1
+
+            Assets.stopAndPlaySound("ui_cancel")
+            self:updateSelected()
+
+            return true
+        end
+
+        if Input.is("confirm", key) and self.selected_y <= 3 then
+            if not self.copied_slot then
+                if self:slotExists(self.selected_y) then
+                    self.copied_slot = self.selected_y
+                    Assets.stopAndPlaySound("ui_select")
+                else
+                    Assets.stopAndPlaySound("ui_cancel")
+                end
+
+            elseif self.copied_slot ~= self.selected_y then
+                self.focused_slot = self.selected_y
+                self.choice_selected = 1
+
+            else
+                Assets.stopAndPlaySound("ui_cancel")
+            end
+
+            return true
+        end
+
+        if Input.is("up", key) then
+            self.selected_y = self.selected_y - 1
+        end
+
+        if Input.is("down", key) then
+            self.selected_y = self.selected_y + 1
+        end
+
+        self.selected_y = MathUtils.clamp(self.selected_y, 1, 4)
+        self.selected_x = 1
+
+        self:updateSelected()
+
+        return true
+    end
+
+    -----------------------------------------------------------
+    -- ERASE
+    -----------------------------------------------------------
+
+    if self.state == "ERASE" then
+        if Input.is("cancel", key) then
+            self.state = "SELECT"
+            self.selected_y = 4
+            self.selected_x = 2
+
+            Assets.stopAndPlaySound("ui_cancel")
+            self:updateSelected()
+
+            return true
+        end
+
+        if Input.is("confirm", key) and self.selected_y <= 3 then
+            if self:slotExists(self.selected_y) then
+                self.focused_slot = self.selected_y
+                self.choice_selected = 1
+
+                Assets.stopAndPlaySound("ui_select")
+            else
+                Assets.stopAndPlaySound("ui_cancel")
+            end
+
+            return true
+        end
+
+        if Input.is("up", key) then
+            self.selected_y = self.selected_y - 1
+        end
+
+        if Input.is("down", key) then
+            self.selected_y = self.selected_y + 1
+        end
+
+        self.selected_y = MathUtils.clamp(self.selected_y, 1, 4)
+        self.selected_x = 1
+
+        self:updateSelected()
+
+        return true
+    end
+
+    return true
+end
+
+function MainMenuMetaSave:update()
+    if self.state == "INTRO" then
+        local chars = self:getIntroCharacters()
+
+        -- Печать текста по одному UTF-8 символу.
+        if self.intro_char < #chars then
+            self.intro_char_timer = self.intro_char_timer + DT
+
+            if self.intro_char_timer >= 0.10 then
+                self.intro_char_timer = 0
+                self.intro_char = self.intro_char + 1
+
+                local visible = {}
+
+                for i = 1, self.intro_char do
+                    visible[i] = chars[i]
+                end
+
+                self.intro_text = table.concat(visible)
+            end
+
+        elseif not self.intro_finished then
+            -- Последний символ уже появился.
+            self.intro_finished = true
+
+            -- Теперь начинается обязательная пауза.
+            self.intro_wait = 1.0
+
+        elseif self.intro_wait > 0 then
+            -- Скрытый таймер.
+            self.intro_wait = MathUtils.approach(
+                self.intro_wait,
+                0,
+                DT
+            )
+        end
+
+        return
+    end
+
+    self:updateSelected()
+end
+
+function MainMenuMetaSave:draw()
+    ----------------------------------------------------------------
+    -- DELTAKIND META SAVE
+    ----------------------------------------------------------------
+
+    love.graphics.setFont(Assets.getFont("main"))
+
+    ----------------------------------------------------------------
+    -- BLACK BACKGROUND
+    ----------------------------------------------------------------
+
+    Draw.setColor(0, 0, 0, 1)
+
+    love.graphics.rectangle(
+        "fill",
+        0,
+        0,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT
+    )
+
+    ----------------------------------------------------------------
+    -- INTRO
+    ----------------------------------------------------------------
+
+    if self.state == "INTRO" then
+        local text = self.intro_text or ""
+
+        if text ~= "" then
+            local font = Assets.getFont("main")
+            local x = 0
+            local y = SCREEN_HEIGHT / 2 - 12
+
+            ----------------------------------------------------------------
+            -- DELTAKIND VOICE GLOW
+            ----------------------------------------------------------------
+
+            -- Мягкий ореол вокруг текста.
+            love.graphics.setFont(font)
+
+            Draw.setColor(1, 1, 1, 0.16)
+            love.graphics.printf(
+                text,
+                x - 3,
+                y,
+                SCREEN_WIDTH,
+                "center"
+            )
+
+            Draw.setColor(1, 1, 1, 0.16)
+            love.graphics.printf(
+                text,
+                x + 3,
+                y,
+                SCREEN_WIDTH,
+                "center"
+            )
+
+            Draw.setColor(1, 1, 1, 0.20)
+            love.graphics.printf(
+                text,
+                x,
+                y - 3,
+                SCREEN_WIDTH,
+                "center"
+            )
+
+            Draw.setColor(1, 1, 1, 0.20)
+            love.graphics.printf(
+                text,
+                x,
+                y + 3,
+                SCREEN_WIDTH,
+                "center"
+            )
+
+            ----------------------------------------------------------------
+            -- ОСНОВНОЙ БЕЛЫЙ ТЕКСТ
+            ----------------------------------------------------------------
+
+            Draw.setColor(1, 1, 1, 1)
+
+            love.graphics.printf(
+                text,
+                x,
+                y,
+                SCREEN_WIDTH,
+                "center"
+            )
+        end
+
+        Draw.setColor(1, 1, 1, 1)
+        return
+    end
+
+    ----------------------------------------------------------------
+    -- HEADER
+    ----------------------------------------------------------------
+
+    Draw.setColor(0.20, 1.00, 0.35, 1)
+
+    Draw.printShadow(
+        "ВЫБЕРИТЕ...",
+        -1,
+        28,
+        2,
+        "center",
+        SCREEN_WIDTH
+    )
+
+    Draw.printShadow(
+        "ВАШ...ПУТЬ.",
+        -1,
+        54,
+        2,
+        "center",
+        SCREEN_WIDTH
+    )
+
+    ----------------------------------------------------------------
+    -- UI BOX SKIN
+    ----------------------------------------------------------------
+
+    local skin
+
+    if Game:isLight() then
+        skin = Game:getConfig("lightTextboxStyle")
+    else
+        skin = Game:getConfig("darkTextboxStyle")
+    end
+
+    local left = Assets.getFramesOrTexture(
+        "ui/box/" .. skin .. "/left"
+    )
+
+    local top = Assets.getFramesOrTexture(
+        "ui/box/" .. skin .. "/top"
+    )
+
+    local corner = Assets.getFramesOrTexture(
+        "ui/box/" .. skin .. "/corner"
+    )
+
+    local function drawGreenBox(x, y, width, height, selected)
+        local left_width = left[1]:getWidth()
+        local left_height = left[1]:getHeight()
+
+        local top_width = top[1]:getWidth()
+        local top_height = top[1]:getHeight()
+
+        width = math.floor(width)
+        height = math.floor(height)
+
+        ----------------------------------------------------------------
+        -- BLACK FILL
+        ----------------------------------------------------------------
+
+        Draw.setColor(0, 0, 0, 1)
+
+        love.graphics.rectangle(
+            "fill",
+            x,
+            y,
+            width,
+            height
+        )
+
+        ----------------------------------------------------------------
+        -- GREEN BORDER
+        ----------------------------------------------------------------
+
+        if selected then
+            Draw.setColor(0.10, 1.00, 0.25, 1)
+        else
+            Draw.setColor(0.03, 0.45, 0.12, 1)
+        end
+
+        Draw.draw(
+            left[1],
+            x,
+            y,
+            0,
+            2,
+            math.floor(height / left_height),
+            left_width,
+            0
+        )
+
+        Draw.draw(
+            left[1],
+            x + width,
+            y,
+            math.pi,
+            2,
+            math.floor(height / left_height),
+            left_width,
+            left_height
+        )
+
+        Draw.draw(
+            top[1],
+            x,
+            y,
+            0,
+            math.floor(width / top_width),
+            2,
+            0,
+            top_height
+        )
+
+        Draw.draw(
+            top[1],
+            x,
+            y + height,
+            math.pi,
+            math.floor(width / top_width),
+            2,
+            top_width,
+            top_height
+        )
+
+        ----------------------------------------------------------------
+        -- CORNERS
+        ----------------------------------------------------------------
+
+        local corners = {
+            {0, 0},
+            {1, 0},
+            {1, 1},
+            {0, 1}
+        }
+
+        for i = 1, 4 do
+            local cx = x + corners[i][1] * width
+            local cy = y + corners[i][2] * height
+
+            local sx =
+                2 * ((corners[i][1] * 2) - 1) * -1
+
+            local sy =
+                2 * ((corners[i][2] * 2) - 1) * -1
+
+            Draw.draw(
+                corner[1],
+                cx,
+                cy,
+                0,
+                sx,
+                sy,
+                corner[1]:getWidth(),
+                corner[1]:getHeight()
+            )
+        end
+    end
+
+    ----------------------------------------------------------------
+    -- SAVE SLOTS
+    ----------------------------------------------------------------
+
+    local slots = self:getSlots()
+
+    local box_width = 493
+    local box_height = 84
+    local gap = 28
+
+    local start_x = (SCREEN_WIDTH - box_width) / 2
+    local start_y = 108
+
+    local heart_sprite = Assets.getTexture("player/heart")
+
+    for i = 1, 3 do
+        local y =
+            start_y
+            + (i - 1) * (box_height + gap)
+
+        local selected =
+            self.selected_y == i
+
+        local data = slots[i]
+
+        drawGreenBox(
+            start_x,
+            y,
+            box_width,
+            box_height,
+            selected
+        )
+
+        ----------------------------------------------------------------
+        -- SLOT CONTENT
+        ----------------------------------------------------------------
+
+        if data then
+            Draw.setColor(0.30, 1.00, 0.40, 1)
+
+            local name = data.name or "PLAYER"
+            local level = data.level or 1
+            local playtime = data.playtime or 0
+
+            local font = Assets.getFont("main")
+
+            ----------------------------------------------------------------
+            -- LEVEL
+            ----------------------------------------------------------------
+
+            Draw.printShadow(
+                "LV " .. tostring(level),
+                start_x + 26,
+                y + 9,
+                2
+            )
+
+            ----------------------------------------------------------------
+            -- NAME
+            ----------------------------------------------------------------
+
+            local name_text = tostring(name)
+            local name_width = font:getWidth(name_text)
+
+            Draw.printShadow(
+                name_text,
+                start_x + box_width / 2 - name_width / 2,
+                y + 9,
+                2
+            )
+
+            ----------------------------------------------------------------
+            -- TIME
+            ----------------------------------------------------------------
+
+            local seconds = math.floor(playtime)
+            local minutes = math.floor(seconds / 60)
+            local hours = math.floor(minutes / 60)
+
+            minutes = minutes % 60
+
+            local time_text = string.format(
+                "%d:%02d",
+                hours,
+                minutes
+            )
+
+            Draw.printShadow(
+                time_text,
+                start_x + box_width
+                    - font:getWidth(time_text)
+                    - 26,
+                y + 9,
+                2
+            )
+
+            ----------------------------------------------------------------
+            -- SAVE LABEL
+            ----------------------------------------------------------------
+
+            Draw.printShadow(
+                "СОХРАНЕНИЕ " .. tostring(i),
+                -1,
+                y + 43,
+                1.5,
+                "center",
+                SCREEN_WIDTH
+            )
+        else
+            Draw.setColor(0.18, 0.70, 0.28, 1)
+
+            Draw.printShadow(
+                "ПУСТО",
+                -1,
+                y + 27,
+                2,
+                "center",
+                SCREEN_WIDTH
+            )
+        end
+
+        ----------------------------------------------------------------
+        -- HEART
+        ----------------------------------------------------------------
+
+        if selected then
+            Draw.setColor(0.10, 1.00, 0.25, 1)
+
+            Draw.draw(
+                heart_sprite,
+                start_x - 26,
+                y + 29
+            )
+        end
+    end
+
+    ----------------------------------------------------------------
+    -- BOTTOM COMMANDS
+    ----------------------------------------------------------------
+
+    local bottom_y =
+        start_y
+        + 3 * (box_height + gap)
+        - 4
+
+    Draw.setColor(0.20, 1.00, 0.35, 1)
+
+    if self.state == "SELECT" then
+        Draw.printShadow(
+            "Z  ВЫБРАТЬ",
+            70,
+            bottom_y,
+            1.5
+        )
+
+        Draw.printShadow(
+            "X  НАЗАД",
+            SCREEN_WIDTH - 165,
+            bottom_y,
+            1.5
+        )
+
+    elseif self.state == "COPY" then
+        Draw.printShadow(
+            "КОПИРОВАНИЕ",
+            -1,
+            bottom_y,
+            1.5,
+            "center",
+            SCREEN_WIDTH
+        )
+
+    elseif self.state == "ERASE" then
+        Draw.printShadow(
+            "УДАЛЕНИЕ",
+            -1,
+            bottom_y,
+            1.5,
+            "center",
+            SCREEN_WIDTH
+        )
+    end
+
+    ----------------------------------------------------------------
+    -- FOCUSED SLOT PROMPT
+    ----------------------------------------------------------------
+
+    if self.focused_slot then
+        local prompt_width = 430
+        local prompt_height = 82
+
+        local px =
+            (SCREEN_WIDTH - prompt_width) / 2
+
+        local py =
+            (SCREEN_HEIGHT - prompt_height) / 2
+
+        drawGreenBox(
+            px,
+            py,
+            prompt_width,
+            prompt_height,
+            true
+        )
+
+        Draw.setColor(0.30, 1.00, 0.40, 1)
+
+        local prompt
+
+        if self.state == "ERASE" then
+            prompt =
+                "УДАЛИТЬ СЛОТ "
+                .. tostring(self.focused_slot)
+                .. "?"
+        else
+            prompt =
+                "ВЫБРАТЬ СЛОТ "
+                .. tostring(self.focused_slot)
+                .. "?"
+        end
+
+        Draw.printShadow(
+            prompt,
+            -1,
+            py + 13,
+            1.5,
+            "center",
+            SCREEN_WIDTH
+        )
+
+        local option_y = py + 48
+
+        if self.choice_selected == 1 then
+            Draw.setColor(0.10, 1.00, 0.25, 1)
+
+            Draw.draw(
+                heart_sprite,
+                px + 55,
+                option_y
+            )
+        end
+
+        Draw.setColor(0.30, 1.00, 0.40, 1)
+
+        Draw.printShadow(
+            "ДА",
+            px + 82,
+            option_y,
+            1.5
+        )
+
+        Draw.printShadow(
+            "НЕТ",
+            px + 285,
+            option_y,
+            1.5
+        )
+    end
+
+    Draw.setColor(1, 1, 1, 1)
+end
+
+return MainMenuMetaSave
