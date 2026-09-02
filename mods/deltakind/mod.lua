@@ -231,6 +231,7 @@ function Mod:registerDebugOptions(debug)
             end
         end,
         inKyleBattle
+    )
 
     debug:registerOption(
         "deltakind_sideb_debug",
