@@ -33,9 +33,9 @@ function Battle:update()
     local path = Kristal.Config.sideB and MUSIC.side_b or MUSIC.side_a
     local track = path[kyle.phase or 1]
 
-    if track and Game.music.current ~= track then
-        Game.music:stop()
-        Game.music:play(track)
+    if track and self.music.current ~= track then
+        self.music:stop()
+        self.music:play(track)
     end
 end
 
