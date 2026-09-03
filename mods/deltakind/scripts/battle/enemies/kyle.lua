@@ -337,7 +337,7 @@ function Kyle:init()
 
     self:registerAct(
         "Поддержка К",
-        "+1900макс ОЗ\nТратит свой ход",
+        "+3100макс ОЗ\nТратит свой ход",
         "kris",
         490
     )
@@ -377,6 +377,20 @@ function Kyle:init()
 
     self.side_b_intro_played = false
     self.side_b_force_act_only = false
+
+    -------------------------------------------------------
+    -- СЧЁТЧИК ПОДДЕРЖКИ К (Phase 1 → влияет на Phase 2)
+    --
+    -- Считает фактические использования "Поддержка К" на
+    -- Крисе. Не путать с Поддержкой С/Р -- те считаются
+    -- отдельно и не влияют на баланс Криса.
+    -------------------------------------------------------
+    self.kris_support_k_count = 0
+
+    -------------------------------------------------------
+    -- ОПИСАНИЯ АКТОВ (обновляем для Phase 2)
+    -------------------------------------------------------
+    self.act_support_k_phase2_gone = false
 end
 
 -----------------------------------------------------------
@@ -646,6 +660,38 @@ function Kyle:vanishSideBPartyMember(id)
     pb.deltakind_vanished = true
     pb.is_down = true
 
+    ---------------------------------------------------
+    -- Защита от возвращения: перекрываем heal/revive
+    -- методы у этого battler'а, чтобы стандартная
+    -- логика движка не вернула его в бой.
+    -- Проверяем наличие перед перекрытием.
+    ---------------------------------------------------
+    if not pb._deltakind_revive_blocked then
+        pb._deltakind_revive_blocked = true
+
+        local _orig_heal = pb.heal
+        pb.heal = function(self_pb, ...)
+            if self_pb.deltakind_vanished then return end
+            return _orig_heal(self_pb, ...)
+        end
+
+        local _orig_revive = pb.revive
+        if _orig_revive then
+            pb.revive = function(self_pb, ...)
+                if self_pb.deltakind_vanished then return end
+                return _orig_revive(self_pb, ...)
+            end
+        end
+
+        local _orig_checkHealth = pb.checkHealth
+        if _orig_checkHealth then
+            pb.checkHealth = function(self_pb, ...)
+                if self_pb.deltakind_vanished then return end
+                return _orig_checkHealth(self_pb, ...)
+            end
+        end
+    end
+
     if Game.battle.battle_ui
     and Game.battle.battle_ui.action_boxes then
 
@@ -726,8 +772,13 @@ end
 function Kyle:onSideBContinueThreshold()
 
     if Game.battle:hasCutscene() then
+        -- Если катсцена уже идёт -- ждём следующего кадра
+        -- (side_b_continue_threshold_hit уже true, повторно не войдём)
         return
     end
+
+    -- Блокируем кнопки на время катсцены continue_resist
+    self:setSideBButtonsLocked(true)
 
     Game.battle:startCutscene(
         "kyle",
@@ -850,21 +901,34 @@ function Kyle:update()
 
         self.phase = 2
 
-        if Game.music.current ~= "knight_phase2" then
-            Game.music:stop()
-            Game.music:play("knight_phase2")
-        end
+        -- Музыку Phase 2 переключает Battle.lua hook каждый кадр.
 
         self:flash()
 
         Game.battle:shake(6)
 
+        -----------------------------------------------
+        -- БАЛАНС PHASE 2 через kris_support_k_count:
+        --
+        -- Каждое использование Поддержки К в Phase 1
+        -- добавляет +15% к атаке Кайла в Phase 2
+        -- (стак не выше ×2.0 итого).
+        -- Смысл: чем больше Крис накачал HP -- тем
+        -- агрессивнее Кайл во Phase 2, но игрок всё
+        -- равно нормально играет и не вынужден AFK.
+        -----------------------------------------------
+
+        local support_bonus = math.min(
+            self.kris_support_k_count * 0.15,
+            1.0  -- максимум +100% к базовому бусту
+        )
+
         if Kristal.Config.sideB then
-            self.attack =
-                self.attack + 125
+            self.attack = self.attack +
+                math.floor(125 * (1 + support_bonus))
         else
-            self.attack =
-                self.attack + 100
+            self.attack = self.attack +
+                math.floor(100 * (1 + support_bonus))
         end
 
         Game.battle:setEncounterText(
@@ -922,20 +986,27 @@ function Kyle:update()
     -- пока ничего не делает и служит точкой подключения.
     -------------------------------------------------------
 
-    if self.side_b_buttons_locked
-    and not self.side_b_continue_threshold_hit then
+    if not self.side_b_continue_threshold_hit then
 
         local kris =
             Game.battle:getPartyBattler(
                 "kris"
             )
 
-        if kris
-        and kris.chara:getHealth() <= 600 then
+        if kris then
+            -- Динамический порог: 600 + kris_support_k_count * 600
+            -- 0 использований Поддержки К -> порог 600
+            -- 1 использование -> порог 1200
+            -- 2 использования -> порог 1800 и т.д.
+            local threshold =
+                600 + (self.kris_support_k_count * 600)
 
-            self.side_b_continue_threshold_hit = true
+            if kris.chara:getHealth() <= threshold then
 
-            self:onSideBContinueThreshold()
+                self.side_b_continue_threshold_hit = true
+
+                self:onSideBContinueThreshold()
+            end
         end
     end
 
@@ -1454,66 +1525,155 @@ function Kyle:onAct(
         "[spacing:2]"
 
     -------------------------------------------------------
-    -- ПОДДЕРЖКА
+    -- ПОДДЕРЖКА К (только Крис)
     -------------------------------------------------------
 
-    if name == "Поддержка К"
-    or name == "Поддержка С"
-    or name == "Поддержка Р" then
+    if name == "Поддержка К" then
 
-        local target_id = "kris"
-        local face = ""
+        local kris =
+            Game.battle:getPartyBattler("kris")
 
-        if name == "Поддержка С" then
+        if kris then
+            local MAX_CAP = 12500
 
-            target_id = "susie"
-            face =
-                "[face:susie/smile]"
+            local current_max =
+                kris.chara.stats["health"]
 
-        elseif name == "Поддержка Р" then
-
-            target_id = "ralsei"
-            face =
-                "[face:ralsei/blush_pleased]"
-        end
-
-        local target_battler =
-            Game.battle:getPartyBattler(
-                target_id
-            )
-
-        if target_battler then
-
-            if target_id ~= "kris" then
-
-                local kris =
-                    Game.battle:getPartyBattler(
-                        "kris"
-                    )
-
-                if kris then
-                    kris.action_finished =
-                        true
-
-                    Game.battle:removeAction(
-                        "kris"
-                    )
+            -- Проверяем, уже достигнут ли cap
+            if current_max >= MAX_CAP then
+                -- Скрываем акт -- больше не нужен
+                for _, act in ipairs(self.acts) do
+                    if act.name == "Поддержка К" then
+                        act.hidden = true
+                    end
                 end
+                self.act_support_k_phase2_gone = true
+                return {
+                    txt ..
+                    "* ОЗ Криса уже максимальны."
+                }
             end
 
-            target_battler.chara.stats["health"] =
-                target_battler.chara.stats["health"] +
-                1900
+            -- +3100, но не выше MAX_CAP
+            local gain = 3100
+            local new_max =
+                math.min(current_max + gain, MAX_CAP)
+            local actual_gain = new_max - current_max
 
-            target_battler:heal(1200)
-            target_battler:flash()
+            kris.chara.stats["health"] = new_max
+            kris:heal(kris.chara.stats["health"]) -- полный хил
+            kris:flash()
+
+            -- Считаем использования (для баланса Phase 2)
+            self.kris_support_k_count =
+                self.kris_support_k_count + 1
+
+            -- Если теперь достигли cap -- скрываем акт
+            if new_max >= MAX_CAP then
+                for _, act in ipairs(self.acts) do
+                    if act.name == "Поддержка К" then
+                        act.hidden = true
+                    end
+                end
+                self.act_support_k_phase2_gone = true
+
+                return {
+                    txt ..
+                    "* КРИС увеличил ОЗ на " ..
+                    actual_gain .. "!\n" ..
+                    "* ОЗ достигли максимума (12500)."
+                }
+            end
 
             return {
-                face ..
                 txt ..
-                "* " ..
-                target_battler.chara.name:upper() ..
-                " увеличил ОЗ!"
+                "* КРИС увеличил макс.ОЗ на " ..
+                actual_gain .. "!"
+            }
+        end
+
+    -------------------------------------------------------
+    -- ПОДДЕРЖКА С (только Сьюзи)
+    -------------------------------------------------------
+
+    elseif name == "Поддержка С" then
+
+        -- В Phase 2 акт скрыт -- сюда попасть не должны,
+        -- но на всякий случай:
+        if self.phase >= 2 then
+            return { txt .. "* ..." }
+        end
+
+        local susie =
+            Game.battle:getPartyBattler("susie")
+
+        if susie and not susie.deltakind_vanished then
+
+            -- Поддержка С тратит ход Криса
+            local kris =
+                Game.battle:getPartyBattler("kris")
+            if kris then
+                kris.action_finished = true
+                Game.battle:removeAction("kris")
+            end
+
+            local MAX_CAP = 12500
+            local current_max =
+                susie.chara.stats["health"]
+            local gain = 1900
+            local new_max =
+                math.min(current_max + gain, MAX_CAP)
+
+            susie.chara.stats["health"] = new_max
+            susie:heal(1200)
+            susie:flash()
+
+            return {
+                "[face:susie/smile]" ..
+                txt ..
+                "* СЬЮЗИ увеличила ОЗ!"
+            }
+        end
+
+    -------------------------------------------------------
+    -- ПОДДЕРЖКА Р (только Ральзей)
+    -------------------------------------------------------
+
+    elseif name == "Поддержка Р" then
+
+        -- В Phase 2 акт скрыт -- сюда попасть не должны
+        if self.phase >= 2 then
+            return { txt .. "* ..." }
+        end
+
+        local ralsei =
+            Game.battle:getPartyBattler("ralsei")
+
+        if ralsei and not ralsei.deltakind_vanished then
+
+            -- Поддержка Р тратит ход Криса
+            local kris =
+                Game.battle:getPartyBattler("kris")
+            if kris then
+                kris.action_finished = true
+                Game.battle:removeAction("kris")
+            end
+
+            local MAX_CAP = 12500
+            local current_max =
+                ralsei.chara.stats["health"]
+            local gain = 1900
+            local new_max =
+                math.min(current_max + gain, MAX_CAP)
+
+            ralsei.chara.stats["health"] = new_max
+            ralsei:heal(1200)
+            ralsei:flash()
+
+            return {
+                "[face:ralsei/blush_pleased]" ..
+                txt ..
+                "* РАЛЬЗЕЙ увеличил ОЗ!"
             }
         end
 

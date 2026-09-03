@@ -6,7 +6,13 @@ function Dummy:init()
     self.text =
         "* Воздух тяжелеет. Рыцарь Пустоты преграждает вам путь. Возможно единственное что вы можете делать...это ДЕЙСТВОВАТЬ."
 
-    self.music = "Kyle"
+    -- Стартовый трек выбирается по режиму.
+    -- Battle.lua hook переключает на Phase 2 автоматически.
+    if Kristal.Config.sideB then
+        self.music = "DEEP_WALKS(Side-b)"
+    else
+        self.music = "Knite_Bandage(Side-a)"
+    end
     self.background = true
 
     -------------------------------------------------------

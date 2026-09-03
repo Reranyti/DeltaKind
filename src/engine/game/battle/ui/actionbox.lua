@@ -92,7 +92,12 @@ function ActionBox:createButtons()
         end
     end
 
-    self.selected_button = MathUtils.clamp(self.selected_button, 1, #self:getSelectableButtons())
+    local selectable_count = #self:getSelectableButtons()
+    if selectable_count > 0 then
+        self.selected_button = MathUtils.clamp(self.selected_button, 1, selectable_count)
+    else
+        self.selected_button = 1
+    end
 end
 
 function ActionBox:setHeadIcon(icon)
@@ -169,11 +174,18 @@ end
 
 function ActionBox:select()
     local buttons = self:getSelectableButtons()
+    -- DeltaKind: при side_b_buttons_locked список может быть пустым.
+    -- Вместо краша просто ничего не делаем.
+    if #buttons == 0 then return end
+    if not buttons[self.selected_button] then return end
     buttons[self.selected_button]:select()
 end
 
 function ActionBox:unselect()
     local buttons = self:getSelectableButtons()
+    -- DeltaKind: guard против пустого списка (аналогично select())
+    if #buttons == 0 then return end
+    if not buttons[self.selected_button] then return end
     buttons[self.selected_button]:unselect()
 end
 
