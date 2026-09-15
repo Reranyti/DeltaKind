@@ -53,10 +53,22 @@ function Music:getVolume()
 end
 
 ---@return number
+-- Треки боя с Кайлом, на которые НЕ должен действовать
+-- глобальный pitch x0.8 Side B. Список синхронизирован с
+-- таблицей MUSIC в scripts/hooks/Battle.lua.
+local KYLE_BATTLE_TRACKS = {
+    ["Knite_Bandage(Side-a)"]  = true,
+    ["See_Hope(Side-a2)"]      = true,
+    ["DEEP_WALKS(Side-b)"]     = true,
+    ["The_Black_Death(Side-b2)"] = true,
+}
+
 function Music:getPitch()
     local pitch = self.pitch * (self.current and MUSIC_PITCHES[self.current] or 1)
 
-    if Kristal.Config.sideB then
+    -- Side B понижает питч всей музыки x0.8, но треки боя
+    -- с Кайлом уже записаны с нужным темпом -- исключаем их.
+    if Kristal.Config.sideB and not KYLE_BATTLE_TRACKS[self.current] then
         pitch = pitch * 0.8
     end
 

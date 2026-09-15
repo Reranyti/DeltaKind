@@ -747,6 +747,22 @@ elseif Game.battle.state == "PARTYSELECT" then
     if page > 0 then
         Draw.draw(self.arrow_sprite, 20, 70 - (math.sin(Kristal.getTime() * 6) * 2), 0, 1, -1)
     end
+
+elseif Game.battle.state == "CUTSCENE"
+    or Game.battle.state == "ACTIONS"
+    or Game.battle.state == "ACTIONSELECT"
+    or Game.battle.state == "BATTLETEXT"
+    or Game.battle.state == "ENEMYDIALOGUE"
+    or Game.battle.state == "DIALOGUEEND"
+    or Game.battle.state == "DEFENDING"
+    or Game.battle.state == "DEFENDINGBEGIN"
+    or Game.battle.state == "DEFENDINGEND"
+    or Game.battle.state == "VICTORY"
+    or Game.battle.state == "TRANSITIONOUT"
+    or Game.battle.state == "INTRO" then
+    -- DeltaKind: в этих состояниях drawState ничего не рисует.
+    -- Без этого elseif предыдущее состояние (ENEMYSELECT/MENUSELECT)
+    -- оставалось видимым поверх катсцены на первый кадр после перехода.
 end
 
 if Game.battle.state == "ATTACKING" or self.attacking then
