@@ -101,10 +101,130 @@ local function diamond(cx, cy, r)
     love.graphics.polygon("line", cx, cy - r, cx + r, cy, cx, cy + r, cx - r, cy)
 end
 
+
+-----------------------------------------------------------
+-- SIDE B: зеркальный фиолетовый «калейдоскоп» (шейдер)
+-----------------------------------------------------------
+
+local KALEIDO_SRC = [[
+extern number time;
+extern vec2 res;
+extern vec3 mauve;
+extern vec3 deepc;
+
+float hash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+float fbm(vec2 p) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 5; i++) {
+        v += a * noise(p);
+        p = p * 2.03 + 11.7;
+        a *= 0.5;
+    }
+    return v;
+}
+
+vec4 effect(vec4 color, Image tex, vec2 uv, vec2 sc) {
+    vec2 p = (sc / res - 0.5) * vec2(res.x / res.y, 1.0) * 2.0;
+    // зеркало по обеим осям
+    p = abs(p);
+    float t = time * 0.12;
+    // искривление: вытянутые полосы, расходящиеся от центра
+    vec2 q = vec2(p.x * 0.9 + 0.15 * sin(p.y * 3.0 + t * 3.0), p.y * 1.3);
+    float r = length(vec2(p.x, p.y * 1.6));
+    float ang = atan(p.y, p.x);
+    vec2 w = vec2(r * 2.2 - t * 2.0, ang * 1.6 + 0.6 * sin(r * 3.0 + t * 4.0));
+    float n = fbm(w + fbm(q * 2.5 + t));
+    float n2 = fbm(w * 1.7 - t * 1.5);
+
+    // палитра: тёмно-фиолетовый -> мальва -> светлый
+    vec3 deep = deepc;
+    vec3 light = vec3(0.92, 0.86, 0.98);
+    float k = smoothstep(0.25, 0.85, n * 0.7 + n2 * 0.5);
+    vec3 col = mix(deep, mauve, k);
+    col = mix(col, light, smoothstep(0.62, 0.95, k + 0.15 * sin(r * 14.0 - time * 1.2)));
+
+    // светящийся эллипс в центре
+    float e = length(vec2(p.x * 0.85, p.y * 1.5));
+    float ring = (1.0 - smoothstep(0.20, 0.30, e)) * (0.6 + 0.4 * sin(e * 60.0 - time * 2.0));
+    float core = (1.0 - smoothstep(0.0, 0.12, e));
+    col += vec3(0.8, 0.7, 1.0) * ring * 0.55 + vec3(0.35, 0.3, 0.6) * core;
+
+    // тёмная виньетка к краям, чтобы читались бой и UI
+    float vig = (1.0 - smoothstep(0.35, 1.55, length(p * vec2(0.8, 1.1))));
+    col *= 0.35 + 0.65 * vig;
+    return vec4(col, 1.0) * color;
+}
+]]
+
+-- Палитра по HP босса (как в референсе): сиреневый -> коричнево-оранжевый ->
+-- зелёный -> красный -> синий. Каждая стопка: {основной тон, тёмный тон}.
+local KALEIDO_PALETTE = {
+    { {0.45, 0.28, 0.62}, {0.05, 0.01, 0.10} }, -- сиреневый
+    { {0.62, 0.40, 0.25}, {0.10, 0.04, 0.02} }, -- коричнево-оранжевый
+    { {0.30, 0.58, 0.32}, {0.02, 0.08, 0.03} }, -- зелёный
+    { {0.65, 0.22, 0.25}, {0.10, 0.01, 0.02} }, -- красный
+    { {0.28, 0.40, 0.70}, {0.02, 0.03, 0.10} }, -- синий
+}
+
+function KnightBackground:getKaleidoColors()
+    local enemy = Game.battle and Game.battle.enemies and Game.battle.enemies[1]
+    local lost = 0
+    if enemy and enemy.max_health then
+        lost = 1 - MathUtils.clamp(enemy.health / enemy.max_health, 0, 1)
+    end
+    local f = lost * (#KALEIDO_PALETTE - 1)
+    local i = math.min(#KALEIDO_PALETTE - 1, math.floor(f))
+    local t = f - i
+    local a, b = KALEIDO_PALETTE[i + 1], KALEIDO_PALETTE[i + 2] or KALEIDO_PALETTE[i + 1]
+    local function mix(ca, cb)
+        return { ca[1] + (cb[1] - ca[1]) * t, ca[2] + (cb[2] - ca[2]) * t, ca[3] + (cb[3] - ca[3]) * t }
+    end
+    return mix(a[1], b[1]), mix(a[2], b[2])
+end
+
+function KnightBackground:drawKaleido(a)
+    if not self.kaleido then
+        local ok, sh = pcall(love.graphics.newShader, KALEIDO_SRC)
+        self.kaleido = ok and sh or false
+    end
+    if not self.kaleido then return false end
+    self.kaleido:send("time", self.time)
+    self.kaleido:send("res", { SCREEN_WIDTH, SCREEN_HEIGHT })
+    local mauve, deepc = self:getKaleidoColors()
+    self.kaleido:send("mauve", mauve)
+    self.kaleido:send("deepc", deepc)
+    love.graphics.setShader(self.kaleido)
+    Draw.setColor(1, 1, 1, a)
+    love.graphics.rectangle("fill", 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+    love.graphics.setShader()
+    Draw.setColor(1, 1, 1, 1)
+    return true
+end
+
 function KnightBackground:drawBackground()
     local a = self.alpha
     local cr, cg, cb = self:getAccent()
     local cx, cy = SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2
+
+    -- Side B: калейдоскоп (если шейдер собрался)
+    if Kristal.Config.sideB and not Kristal.Config.sideC and self:drawKaleido(a) then
+        return
+    end
 
     -- Чёрная пустота
     Draw.setColor(0, 0, 0, a)
