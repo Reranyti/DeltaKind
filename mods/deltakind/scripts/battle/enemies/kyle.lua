@@ -915,6 +915,7 @@ Kyle.wave_animations = {
     BladeSeek     = "rush_clash",
     BladeSpin     = "slash",
     BladeSplit    = "slash",
+    BladeRoar     = "roaring",
     CircleBullets = "flurry",
     RotatingGrid  = "rush_clash",
     Saw           = "slash",
@@ -1307,6 +1308,13 @@ end
 -----------------------------------------------------------
 
 function Kyle:selectWave()
+
+    -- Финал «Рёв»: один раз, когда остаётся 15% HP или меньше
+    if self.health <= self.max_health * 0.15 and not self.roar_done then
+        self.roar_done = true
+        self.current_wave = "BladeRoar"
+        return "BladeRoar"
+    end
 
     -------------------------------------------------------
     -- wave_override имеет приоритет.
