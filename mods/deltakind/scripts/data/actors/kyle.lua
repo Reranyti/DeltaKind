@@ -35,7 +35,27 @@ function actor:init()
         ["slash_front"]  = {"slash_front", 0.16, false},
     }
 
+    -- Кадры разного размера выравниваем по низу-центру кадра idle (136x146):
+    -- ox = (136 - w) / 2, oy = 146 - h.
+    local sizes = {
+        idle         = {136, 146},
+        battle_intro = {244, 281},
+        hurt         = {153, 130},
+        afterimage   = {180, 146},
+        point        = {158, 134},
+        slash        = {234, 230},
+        flurry       = {226, 156},
+        rush_clash   = {166, 148},
+        front        = {140, 160},
+        roaring      = {140, 160},
+        slash_front  = {266, 282},
+    }
+
     self.offsets = {}
+    for name, size in pairs(sizes) do
+        local off = {(136 - size[1]) / 2, 146 - size[2]}
+        self.offsets[name] = off
+    end
 end
 
 return actor
