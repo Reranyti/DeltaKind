@@ -900,8 +900,68 @@ function Kyle:onUpdate()
     super.onUpdate(self)
 end
 
+-----------------------------------------------------------
+-- АНИМАЦИИ АТАК (кадры с вики, см. data/actors/kyle.lua)
+-----------------------------------------------------------
+
+Kyle.wave_animations = {
+    CircleBullets = "flurry",
+    RotatingGrid  = "rush_clash",
+    Saw           = "slash",
+    Fracture      = "slash",
+    Rebound       = "point",
+    ReboundHell   = "point",
+    Shift         = "rush_clash",
+    ShiftHell     = "rush_clash",
+    OrangeWall    = "slash",
+    Hazard        = "flurry",
+    Rain          = "point",
+    Spiral        = "flurry",
+    Crossfire     = "slash"
+}
+
+function Kyle:updateAttackAnimation()
+    local defending = Game.battle and Game.battle.state == "DEFENDING"
+
+    if defending and not self.attack_anim_active then
+        self.attack_anim_active = true
+
+        local anim = self.wave_animations[self.current_wave]
+        if anim then
+            self:setAnimation(anim)
+        end
+
+    elseif not defending and self.attack_anim_active then
+        self.attack_anim_active = false
+
+        -- Не перебиваем анимацию получения урона.
+        if self.hurt_timer <= 0 then
+            self:setAnimation("idle")
+        end
+    end
+
+    -- Фаза 2: короткий рёв при переходе.
+    if self.phase >= 2 and not self.roar_played then
+        self.roar_played = true
+        self:setAnimation("roaring")
+        self.roar_timer = 1.2
+    end
+
+    if self.roar_timer then
+        self.roar_timer = self.roar_timer - DT
+        if self.roar_timer <= 0 then
+            self.roar_timer = nil
+            if not defending then
+                self:setAnimation("idle")
+            end
+        end
+    end
+end
+
 function Kyle:update()
     super.update(self)
+
+    self:updateAttackAnimation()
 
     -------------------------------------------------------
     -- ПЕРЕХОД ВО 2 ФАЗУ
