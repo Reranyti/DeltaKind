@@ -1,49 +1,109 @@
 -----------------------------------------------------------
--- BLADE STARS («Звёзды») — клинки и разрезы, атака 1 (по оригиналу)
+-- BLADE STARS («Звёзды») — атака 1 оригинала Рокочущего Рыцаря.
 --
--- Тонкая белая линия из ладони через арену, затем фиолетовый конус;
--- по нему вылетают шестиконечные звёзды, растут и расходятся по арене,
--- краснеют, взрываются осколками (3 коротких + 3 длинных).
+-- Хронология (секунды от начала, по раскадровке оригинала 24.0–32.0):
+--   0.0   арена въезжает (маленькая); пунктирная белая линия-прицел
+--         на высоте центра поля через весь экран;
+--   1.0   конус ветра из кончика меча: белая вспышка, потом фиолетовый;
+--         арену сдувает влево всё время, пока он горит;
+--   1.6–4.4 звёзды рождаются у кончика меча по одной, идут налево веером
+--         (внутри конуса), растут с расстоянием;
+--   4.6   конец ветра: вторая белая вспышка конуса; арена дёргается влево;
+--   4.8   толстая белая полоса-вспышка на высоте центра поля;
+--   4.9   все звёзды разом замирают и краснеют, из них лучи света;
+--   6.1   все звёзды разом взрываются: серые вспышки + осколки-«ёлочки»;
+--   8.4   конец.
 -- Фаза 2: звёзд больше.
 -----------------------------------------------------------
 
 local BladeStars, super = Class(Wave)
 
+local ARENA_W, ARENA_H = 128, 100
+local SLIDE = 66                 -- полный сдвиг арены влево (px)
+local SLIDE_GRADUAL = 0.67       -- доля сдвига, пока дует ветер
+local T_LINE_END = 1.0
+local T_CONE_START = 1.0
+local T_CONE_END = 4.6
+local T_STARS_START = 1.6
+local T_RED = 4.9
+local T_BOOM = 6.1
+local T_END = 8.4
+
 function BladeStars:onStart()
     local enemy = self.attacker or Game.battle:getEnemyBattler("kyle")
     local phase2 = enemy and enemy.phase == 2
-    local arena = Game.battle.arena
 
-    local count = phase2 and 18 or 13
-    local step = phase2 and 0.13 or 0.17
+    local count = phase2 and 20 or 16
+    local step = (4.4 - T_STARS_START) / count
 
     local multiplier =
         (enemy and enemy.getDifficultyMultiplier and enemy:getDifficultyMultiplier()) or 1
     local damage = math.ceil(75 * (1 + (multiplier - 1) * 0.25))
 
-    -- Ладонь Рыцаря
-    local px = enemy and (enemy.x - 78) or 440
-    local py = enemy and (enemy.y - 82) or 178
+    self.stage = "fly"
+    self.clock = 0
+    self.time = T_END
 
-    self.time = 0.7 + count * step + 1.2 + 0.7 + 1.6
+    -- Арена маленькая; запоминаем исходное положение для сдвига ветром
+    self:setArenaSize(ARENA_W, ARENA_H)
+    local arena = Game.battle.arena
+    self.ax0, self.ay0 = arena.x, arena.y
+
+    -- Кончик меча (вершина конуса) на высоте центра поля
+    local tipx = enemy and (enemy.x - 82) or 438
+    local tipy = self.ay0
 
     self.timer:script(function(wait)
-        -- 1. линия-прицел из ладони через арену
-        local ang = math.atan2(arena.y - py, arena.x - px)
-        local len = math.sqrt(arena.width ^ 2 + arena.height ^ 2) + 200
-        self:spawnBullet("blade_slash", px, py, ang, len, 0.5, 0.05, 2, 0)
-        wait(0.55)
+        -- 0.0: пунктирная линия-прицел
+        self:spawnBullet("blade_line", tipy, T_LINE_END)
+        wait(T_CONE_START)
 
-        -- 2. конус и звёзды
-        self:spawnBullet("blade_cone", px, py, math.pi, 480, 0.42, 1.2 + count * step + 0.7)
+        -- 1.0: конус ветра (вспышка в начале и в конце)
+        self:spawnBullet("blade_cone", tipx, tipy, math.pi, 700, 0.42, T_CONE_END - T_CONE_START)
+        wait(T_STARS_START - T_CONE_START)
+
+        -- 1.6–4.4: звёзды по одной веером внутри конуса
         for i = 1, count do
-            local tx = arena.x + MathUtils.random(-0.5, 0.5) * (arena.width + 40)
-            local ty = arena.y + MathUtils.random(-0.5, 0.5) * (arena.height + 40)
-            local s = self:spawnBullet("blade_nova", px, py, tx, ty, damage)
+            local ang = math.pi + MathUtils.random(-0.4, 0.4)
+            local scale = (math.random() < 0.2) and MathUtils.random(1.2, 1.6) or MathUtils.random(0.8, 1.15)
+            local s = self:spawnBullet("blade_nova", tipx, tipy, ang, damage, scale)
             if s then s.wave = self end
             wait(step)
         end
+
+        -- 4.8: толстая белая полоса на высоте центра поля
+        wait(T_CONE_END + 0.2 - (T_STARS_START + count * step))
+        self:spawnBullet("blade_line", tipy, 0.2, 10, true)
     end)
+end
+
+function BladeStars:update()
+    super.update(self)
+    self.clock = (self.clock or 0) + DT
+    local t = self.clock
+
+    -- Стадии звёзд (общие для всех)
+    if t >= T_BOOM then
+        self.stage = "boom"
+    elseif t >= T_RED then
+        self.stage = "red"
+    end
+
+    -- Ветер: пока дует конус, арену сдувает влево (ускоряясь);
+    -- после конца ветра она дёргается до конечной точки.
+    if self.ax0 then
+        local k
+        if t < T_CONE_START + 0.2 then
+            k = 0
+        elseif t < T_CONE_END then
+            local u = (t - T_CONE_START - 0.2) / (T_CONE_END - T_CONE_START - 0.2)
+            k = SLIDE_GRADUAL * u * (0.7 + 0.3 * u)
+        else
+            local u = MathUtils.clamp((t - T_CONE_END) / 0.25, 0, 1)
+            k = SLIDE_GRADUAL + (1 - SLIDE_GRADUAL) * (1 - (1 - u) * (1 - u))
+        end
+        self:setArenaPosition(self.ax0 - SLIDE * k, self.ay0)
+    end
 end
 
 return BladeStars
