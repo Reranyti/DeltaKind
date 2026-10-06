@@ -32,6 +32,9 @@ function BladeSeek:onStart()
     end
     self.time = total + aim_end + 0.3 + 0.9
 
+    -- Маленькая квадратная арена, как в оригинале
+    self:setArenaSize(104, 104)
+
     -- 8 сторон света (кардинальные и интеркардинальные)
     local dirs = {}
     for i = 0, 7 do dirs[#dirs + 1] = i * math.pi / 4 end
@@ -44,7 +47,7 @@ function BladeSeek:onStart()
             repeat di = math.random(1, 8) until di ~= last_i
             last_i = di
 
-            local b = self:spawnBullet("blade_dart", 0, 0, dirs[di], 95, aim, damage)
+            local b = self:spawnBullet("blade_dart", 0, 0, dirs[di], aim, damage)
             if b then b.wave = self end
             wait(aim * 0.8)
         end
