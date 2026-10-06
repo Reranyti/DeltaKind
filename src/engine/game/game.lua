@@ -1090,6 +1090,11 @@ function Game:getSoulColor()
     if Kristal.Config.sideB then
         return 0, 0.75, 1, 1
     end
+    
+    -- Side C: зелёное сердце Ральзея
+    if Kristal.Config.sideC then
+        return 0, 1, 0, 1  -- зелёное
+    end
 
     local mr, mg, mb, ma = Kristal.callEvent(KRISTAL_EVENT.getSoulColor)
     if mr ~= nil then
@@ -1429,7 +1434,14 @@ function Game:drawDevWarning()
 end
 
 function Game:draw()
-    love.graphics.clear(0, 0, 0, 1)
+    local r, g, b = 0, 0, 0
+    
+    -- Side C имеет зелёный оттенок
+    if Kristal.Config.sideC then
+        r, g, b = 0, 0.3, 0
+    end
+    
+    love.graphics.clear(r, g, b, 1)
     love.graphics.push()
     if Kristal.callEvent(KRISTAL_EVENT.preDraw) then
         love.graphics.pop()

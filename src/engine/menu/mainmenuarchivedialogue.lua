@@ -113,6 +113,8 @@ function MainMenuArchiveDialogue:getLineText(step)
         ask_colors = "...ВЫ ЛЮБИТЕ...ЦВЕТА?",
 
         colorful_result = "Хорошо. тогда теперь вам решать кем вы будете.",
+        
+        consequence_start = "ТОГДА ПУСТЬ ВЫ ПОЧУВСТВУЕТЕ...ПОСЛЕДСТВИЯ СВОИХ ДЕЙСТВИЙ.",
     }
 
     return lines[step] or ""
@@ -136,17 +138,18 @@ function MainMenuArchiveDialogue:advance()
         end
 
     elseif step == "irresponsible" then
-        self:goToLine("ask_colors")
+        self:goToChoice("ask_colors")  -- ВЫБОР, а не просто текст!
 
     elseif step == "ask_colors" then
-        if self.choice_selected == 1 then -- Да
+        if self.choice_selected == 1 then -- Да (разноцветный режим)
             self:goToLine("colorful_result")
-        else -- Нет
-            -- "игра вылетит и вас переведёт на твоя
-            -- последственность" — тот же исход, что и
-            -- неуказанный архив.
-            self:closeToConsequence()
+        else -- Нет (Side C / Последствие)
+            -- Текст перед закрытием - разблокировка Side C
+            self:goToLine("consequence_start")
         end
+    
+    elseif step == "consequence_start" then
+        self:closeToConsequence()
 
     elseif step == "colorful_result" then
         self.progress_data.unlocked_colorful = true

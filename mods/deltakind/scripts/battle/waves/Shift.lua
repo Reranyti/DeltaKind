@@ -32,21 +32,22 @@ function Shift:onStart()
                 )
 
             local step =
-                is_phase2 and 11 or 15
+                is_phase2 and 10 or 13
 
             local speed =
-                is_phase2 and 17 or 11
+                is_phase2 and 18 or 13
 
             local wait_time =
-                is_phase2 and 0.45 or 0.9
+                is_phase2 and 0.5 or 0.9
 
             for y =
                 Game.battle.arena.top - 20,
                 Game.battle.arena.bottom + 20,
                 step do
 
+                -- gap_size увеличен: разрыв должен быть проходимым
                 local gap_size =
-                    is_phase2 and 22 or 30
+                    is_phase2 and 32 or 40
 
                 local in_gap =
                     math.abs(y - gap_y) < gap_size
@@ -83,9 +84,9 @@ function Shift:onStart()
                     end
 
                 else
-
-                    if is_phase2
-                    or math.random() > 0.5 then
+                    -- В Phase 2 в разрыве спавним медленную ловушку
+                    -- только с вероятностью 40% -- разрыв остаётся проходимым
+                    if is_phase2 and math.random() > 0.6 then
 
                         local trap =
                             self:spawnBullet(
@@ -96,7 +97,7 @@ function Shift:onStart()
 
                         if trap then
                             trap.physics.speed =
-                                speed * 0.4
+                                speed * 0.3
 
                             trap.physics.direction =
                                 (side == 1)
@@ -110,9 +111,26 @@ function Shift:onStart()
                             )
 
                             trap.damage =
-                                enemy.attack * 0.5
+                                enemy.attack * 0.4
                         end
                     end
+                end
+            end
+
+            -- 1-2 медленные пули строго внутри разрыва -- дезориентируют
+            -- но не закрывают проход полностью
+            local slow_offsets = is_phase2 and {-8, 8} or {0}
+            for _, off in ipairs(slow_offsets) do
+                local slow = self:spawnBullet(
+                    "bullets/smallbullet",
+                    x, gap_y + off
+                )
+                if slow then
+                    slow.physics.speed = speed * 0.4
+                    slow.physics.direction =
+                        (side == 1) and 0 or math.pi
+                    slow:setColor(1, 0.4, 0)
+                    slow.damage = enemy.attack * 0.5
                 end
             end
 

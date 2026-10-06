@@ -69,21 +69,21 @@ return {
         -------------------------------------------------------
 
         cutscene:text(
-            "[face:susie/surprise,10,10]...Крис?"
+            "[face:susie/surprise]...Крис?"
         )
 
         cutscene:text(
-            "[face:susie/suspicious,10,10]Ты тоже его видишь...?"
+            "[face:susie/suspicious]Ты тоже его видишь...?"
         )
 
         cutscene:wait(0.8)
 
         cutscene:text(
-            "[face:ralsei/stressed,10,10]Мне кажется... у нас нет выбора."
+            "[face:ralsei/stressed]Мне кажется... у нас нет выбора."
         )
 
         cutscene:text(
-            "[face:susie/shock,10,10]Чёрт."
+            "[face:susie/shock]Чёрт."
         )
 
         cutscene:wait(1.0)

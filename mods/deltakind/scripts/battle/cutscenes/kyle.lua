@@ -7,231 +7,12 @@
 local RED = "[color:red]*[color:reset] "
 local BLUE = "[color:blue]*[color:reset] "
 
-local function _side_b_qte(cutscene)
-        local kyle = cutscene:getCharacter("kyle")
+-- Forward declaration: функции внутри таблицы ссылаются на эту переменную.
+-- Присваивание происходит ниже -- но к моменту ВЫЗОВА функций
+-- переменная уже заполнена, поэтому closure работает корректно.
+local _kyle_cutscenes
 
-        if not ContinueQTE.FINAL_TEXTIND_PLACEHOLDER then
-            cutscene:setSpeaker(nil)
-            cutscene:text(
-                "[color:yellow]* (DEV) final_textind не задан -- " ..
-                "QTE не может\n" ..
-                "* корректно завершиться. Возвращаю бой " ..
-                "в обычный режим.[color:reset]"
-            )
-
-            if kyle and kyle.setSideBButtonsLocked then
-                kyle:setSideBButtonsLocked(false)
-            end
-
-            return
-        end
-
-        local qte = ContinueQTE(ContinueQTE.FINAL_TEXTIND_PLACEHOLDER)
-
-        local FAKE_PATHS = {
-            "C:/deltakind/save/side_b.dat",
-            "C:/deltakind/save/kris_route.tmp",
-            "C:/deltakind/cache/soul_data.bin",
-            "C:/deltakind/save/meta_slot.dat",
-        }
-
-        local scare_text = Text("", 4, 4, 220, 90)
-        Game.battle:addChild(scare_text)
-
-        local function escalationSound()
-            -- Раздел 31: 3 ступени звука (имена -- fallback-
-            -- заглушки, канон явно это разрешает на этапе
-            -- разработки). Плюс pitch растёт с textind внутри
-            -- каждой ступени (раздел 30: "тон статики
-            -- повышается") -- Assets.playSound(sound, volume,
-            -- pitch) поддерживает pitch как реальный параметр
-            -- движка (src/engine/assets.lua:417).
-            local pitch = 1 + math.min(qte.textind, 40) * 0.01
-
-            if qte.textind >= 41 then
-                Assets.playSound("snd_ominous_hell_super", nil, pitch)
-            elseif qte.textind >= 23 then
-                Assets.playSound("snd_ominous_hell", nil, pitch)
-            else
-                Assets.playSound("snd_ominous", nil, pitch)
-            end
-        end
-
-        local function fileScareTick()
-            if qte.textind > 0 and qte.textind % 5 == 0 then
-                local path = FAKE_PATHS[
-                    (math.floor(qte.textind / 5) - 1) %
-                    #FAKE_PATHS + 1
-                ]
-                scare_text:setText(
-                    (scare_text.text and scare_text.text.text or "") ..
-                    "Удалено: " .. path .. "\n"
-                )
-            end
-        end
-
-        cutscene:setSpeaker(nil)
-
-        -------------------------------------------------
-        -- ГЛОБАЛЬНЫЙ ПРОГРЕСС QTE (раздел 30-31 канона):
-        -- static/pitch должны расти по мере приближения к
-        -- концу QTE в целом, не только к концу ТЕКУЩЕГО
-        -- вопроса (это отдельная величина от
-        -- qte:getTimerProgress(), который про один вопрос).
-        --
-        -- ПРЕДПОЛОЖЕНИЕ: раз final_textind не подтверждён,
-        -- глобальный прогресс приближённо считается через
-        -- FAST_SEGMENT как ориентир (0 в начале, ~1 к концу
-        -- быстрого сегмента). Это грубое приближение, не
-        -- точная формула -- канон не даёт формулы для
-        -- глобальной эскалации звука/шума, только сам факт
-        -- эскалации (раздел 31: 3 ступени звука).
-        -------------------------------------------------
-
-        local function globalProgress()
-            local approx_end =
-                ContinueQTE.FAST_SEGMENT_START +
-                ContinueQTE.FAST_SEGMENT_COUNT
-
-            return MathUtils.clamp(
-                qte.textind / approx_end, 0, 1
-            )
-        end
-
-        while not qte.done and not qte.failed do
-
-            local _, choice_box =
-                cutscene:choicer({ "Продолжай." }, { wait = false })
-
-            cutscene:wait(function()
-                qte:update()
-
-                local gprog = globalProgress()
-                local qprog = qte:getTimerProgress()
-
-                -----------------------------------------
-                -- Whiteout (раздел 30) -- растёт с прогрессом
-                -- текущего вопроса (баг с Fader:setColor уже
-                -- исправлен, см. предыдущее ревью).
-                -----------------------------------------
-
-                if Game.fader then
-                    Game.fader.fade_color = { 1, 1, 1 }
-                    Game.fader.alpha = 0.6 * qprog
-                end
-
-                -----------------------------------------
-                -- "Статика" (раздел 30) -- НЕТ готового
-                -- шум-шейдера в движке (не найден при
-                -- поиске), поэтому это ПРИБЛИЖЕНИЕ: слабый
-                -- случайный тряс камеры, усиливающийся с
-                -- глобальным прогрессом. Это НЕ настоящий
-                -- визуальный шум/static-текстура.
-                -----------------------------------------
-
-                if gprog > 0.3 and math.random() < gprog * 0.15 then
-                    Game.battle:shake(1 + gprog * 3)
-                end
-
-                -----------------------------------------
-                -- "Подсказки становятся менее заметными"
-                -- (раздел 30) -- альфа choice_box снижается
-                -- с глобальным прогрессом, но не до конца
-                -- (иначе будет невозможно понять, что жать).
-                -- ПРЕДПОЛОЖЕНИЕ: ChoiceBox наследует .alpha
-                -- от Object и учитывает его при отрисовке --
-                -- не проверено запуском движка.
-                -----------------------------------------
-
-                choice_box.alpha =
-                    MathUtils.clamp(1 - gprog * 0.6, 0.4, 1)
-
-                -----------------------------------------
-                -- "SOUL остаётся видимой почти до конца"
-                -- (раздел 30) -- ПОКА НЕ ГАРАНТИРОВАНО:
-                -- Fader обычно рисуется поверх сцены как
-                -- полноэкранный прямоугольник, а объект
-                -- SOUL/сердца здесь никак не выводится
-                -- поверх него. Порядок отрисовки НЕ
-                -- проверен -- честно оставляю как
-                -- неподтверждённый риск, а не как решённый
-                -- пункт.
-                -----------------------------------------
-
-                return choice_box.done or qte.failed
-            end)
-
-            if qte.failed then
-                break
-            end
-
-            qte:choose()
-            escalationSound()
-            fileScareTick()
-        end
-
-        cutscene:closeText()
-        scare_text:remove()
-
-        if Game.fader then
-            Game.fader.alpha = 0
-        end
-
-        if qte.failed then
-
-            -----------------------------------------------
-            -- ПЛОХОЙ ИСХОД (раздел 18) -- ИМИТАЦИЯ КРАША
-            --
-            -- love.event.quit() по-прежнему реально закрывает
-            -- игру (буквальная трактовка "игра должна
-            -- вылететь") -- это не изменилось и не может быть
-            -- изменено без нарушения буквального текста
-            -- канона. Добавлена только визуальная подводка
-            -- перед закрытием: быстрое мигание случайным
-            -- цветом + тряска экрана, чтобы это ощущалось как
-            -- сбой, а не как чистый переход в меню.
-            -----------------------------------------------
-
-            cutscene:setSpeaker(nil)
-            cutscene:closeText()
-
-            for _ = 1, 8 do
-                Game.battle:shake(10)
-
-                if Game.fader then
-                    Game.fader.fade_color = {
-                        math.random(),
-                        math.random(),
-                        math.random(),
-                    }
-                    Game.fader.alpha = 1
-                end
-
-                cutscene:wait(0.05)
-            end
-
-            if Game.fader then
-                Game.fader.fade_color = { 0, 0, 0 }
-                Game.fader.alpha = 1
-            end
-
-            cutscene:wait(0.3)
-
-            love.event.quit()
-            return
-        end
-
-        -----------------------------------------------
-        -- ХОРОШИЙ ИСХОД (раздел 18-19)
-        -----------------------------------------------
-
-        if kyle and kyle.onSideBQteSuccess then
-            kyle:onSideBQteSuccess()
-        end
-    end
-end
-
-return {
+_kyle_cutscenes = {
     -- The inclusion of the below line tells the language server that the first parameter of the cutscene is `BattleCutscene`.
     ---@param cutscene BattleCutscene
 
@@ -383,22 +164,14 @@ return {
             kyle:setSideBActFilter(false)
         end
 
-        -- Кнопки блокируются только на время этой катсцены.
-        -- После "теперь. ПРОДОЛЖАЙ." игрок снова может действовать --
-        -- кнопки возвращаются, но HP Криса падает от меча (twistedswd).
-        -- Когда HP достигает динамического порога (600 + kris_support_k_count * 600),
-        -- Kyle:update() запускает side_b_continue_resist.
         if kyle and kyle.setSideBButtonsLocked then
             kyle:setSideBButtonsLocked(true)
         end
 
-        -- Небольшая пауза чтобы текст "ПРОДОЛЖАЙ." был виден
-        cutscene:wait(0.5)
-
-        -- Снимаем блокировку -- игрок снова может действовать
-        if kyle and kyle.setSideBButtonsLocked then
-            kyle:setSideBButtonsLocked(false)
-        end
+        -- Ход НЕ возвращается игроку после надевания меча.
+        -- Кайл сразу атакует; Kyle:update() запустит
+        -- side_b_continue_resist когда HP упадёт до порога.
+        -- setSideBButtonsLocked остаётся true.
     end,
 
     -----------------------------------------------------------
@@ -445,9 +218,8 @@ return {
         cutscene:setSpeaker(nil)
         cutscene:text("Продолжай.")
 
-        -- Вызываем side_b_qte напрямую как локальную функцию --
-        -- нельзя startCutscene изнутри активной катсцены.
-        _side_b_qte(cutscene)
+        -- Прямой вызов через forward-declared переменную
+        _kyle_cutscenes.side_b_qte(cutscene)
     end,
 
     -----------------------------------------------------------
@@ -485,6 +257,241 @@ return {
     --      трактовка "игра должна вылететь" (раздел 18).
     -----------------------------------------------------------
 
-    side_b_qte = _side_b_qte,
+    side_b_qte = function(cutscene)
+        local kyle = cutscene:getCharacter("kyle")
 
+        -- Глушим музыку на время QTE чтобы SFX был слышен чётко
+        local music_was_playing = Game.battle.music and Game.battle.music:isPlaying()
+        if music_was_playing then
+            Game.battle.music:fade(0, 10/30, function()
+                Game.battle.music:stop()
+            end)
+        end
+
+        if not ContinueQTE.FINAL_TEXTIND_PLACEHOLDER then
+            cutscene:setSpeaker(nil)
+            cutscene:text(
+                "[color:yellow]* (DEV) final_textind не задан -- " ..
+                "QTE не может\n" ..
+                "* корректно завершиться. Возвращаю бой " ..
+                "в обычный режим.[color:reset]"
+            )
+
+            if kyle and kyle.setSideBButtonsLocked then
+                kyle:setSideBButtonsLocked(false)
+            end
+
+            return
+        end
+
+        local qte = ContinueQTE(ContinueQTE.FINAL_TEXTIND_PLACEHOLDER)
+
+        local FAKE_PATHS = {
+            "C:/deltakind/save/side_b.dat",
+            "C:/deltakind/save/kris_route.tmp",
+            "C:/deltakind/cache/soul_data.bin",
+            "C:/deltakind/save/meta_slot.dat",
+        }
+
+        local scare_text = Text("", 4, 4, 220, 90)
+        Game.battle:addChild(scare_text)
+
+        local function escalationSound()
+            -- cutscene:playSound() -- правильный API для звуков
+            -- внутри катсцен (src/engine/game/common/cutscene.lua:247).
+            -- Assets.playSound напрямую не работает из coroutine.
+            local pitch = 1 + math.min(qte.textind, 40) * 0.01
+
+            if qte.textind >= 41 then
+                cutscene:playSound("snd_ominous_hell_super", nil, pitch)
+            elseif qte.textind >= 23 then
+                cutscene:playSound("snd_ominous_hell", nil, pitch)
+            else
+                cutscene:playSound("snd_ominous", nil, pitch)
+            end
+        end
+
+        local function fileScareTick()
+            if qte.textind > 0 and qte.textind % 5 == 0 then
+                local path = FAKE_PATHS[
+                    (math.floor(qte.textind / 5) - 1) %
+                    #FAKE_PATHS + 1
+                ]
+                scare_text:setText(
+                    (scare_text.text and scare_text.text.text or "") ..
+                    "Удалено: " .. path .. "\n"
+                )
+            end
+        end
+
+        cutscene:setSpeaker(nil)
+
+        -------------------------------------------------
+        -- ГЛОБАЛЬНЫЙ ПРОГРЕСС QTE (раздел 30-31 канона):
+        -- static/pitch должны расти по мере приближения к
+        -- концу QTE в целом, не только к концу ТЕКУЩЕГО
+        -- вопроса (это отдельная величина от
+        -- qte:getTimerProgress(), который про один вопрос).
+        --
+        -- ПРЕДПОЛОЖЕНИЕ: раз final_textind не подтверждён,
+        -- глобальный прогресс приближённо считается через
+        -- FAST_SEGMENT как ориентир (0 в начале, ~1 к концу
+        -- быстрого сегмента). Это грубое приближение, не
+        -- точная формула -- канон не даёт формулы для
+        -- глобальной эскалации звука/шума, только сам факт
+        -- эскалации (раздел 31: 3 ступени звука).
+        -------------------------------------------------
+
+        local function globalProgress()
+            local approx_end =
+                ContinueQTE.FAST_SEGMENT_START +
+                ContinueQTE.FAST_SEGMENT_COUNT
+
+            return MathUtils.clamp(
+                qte.textind / approx_end, 0, 1
+            )
+        end
+
+        while not qte.done and not qte.failed do
+
+            local _, choice_box =
+                cutscene:choicer({ "Продолжай." }, { wait = false })
+
+            cutscene:wait(function()
+                qte:update()
+
+                local gprog = globalProgress()
+                local qprog = qte:getTimerProgress()
+
+                -----------------------------------------
+                -- Whiteout (раздел 30) -- растёт с прогрессом
+                -- текущего вопроса (баг с Fader:setColor уже
+                -- исправлен, см. предыдущее ревью).
+                -----------------------------------------
+
+                if Game.fader then
+                    Game.fader.fade_color = { 1, 1, 1 }
+                    Game.fader.alpha = 0.6 * qprog
+                end
+
+                -----------------------------------------
+                -- "Статика" (раздел 30) -- НЕТ готового
+                -- шум-шейдера в движке (не найден при
+                -- поиске), поэтому это ПРИБЛИЖЕНИЕ: слабый
+                -- случайный тряс камеры, усиливающийся с
+                -- глобальным прогрессом. Это НЕ настоящий
+                -- визуальный шум/static-текстура.
+                -----------------------------------------
+
+                if gprog > 0.3 and math.random() < gprog * 0.15 then
+                    Game.battle:shake(1 + gprog * 3)
+                end
+
+                -----------------------------------------
+                -- "Подсказки становятся менее заметными"
+                -- (раздел 30) -- альфа choice_box снижается
+                -- с глобальным прогрессом, но не до конца
+                -- (иначе будет невозможно понять, что жать).
+                -- ПРЕДПОЛОЖЕНИЕ: ChoiceBox наследует .alpha
+                -- от Object и учитывает его при отрисовке --
+                -- не проверено запуском движка.
+                -----------------------------------------
+
+                choice_box.alpha =
+                    MathUtils.clamp(1 - gprog * 0.6, 0.4, 1)
+
+                -----------------------------------------
+                -- "SOUL остаётся видимой почти до конца"
+                -- (раздел 30) -- ПОКА НЕ ГАРАНТИРОВАНО:
+                -- Fader обычно рисуется поверх сцены как
+                -- полноэкранный прямоугольник, а объект
+                -- SOUL/сердца здесь никак не выводится
+                -- поверх него. Порядок отрисовки НЕ
+                -- проверен -- честно оставляю как
+                -- неподтверждённый риск, а не как решённый
+                -- пункт.
+                -----------------------------------------
+
+                return choice_box.done or qte.failed
+            end)
+
+            if qte.failed then
+                break
+            end
+
+            qte:choose()
+            escalationSound()
+            fileScareTick()
+
+            -- Задержка 0.5s после нажатия перед следующим "Продолжай."
+            cutscene:wait(0.5)
+        end
+
+        cutscene:closeText()
+        scare_text:remove()
+
+        -- Восстанавливаем музыку после QTE
+        if music_was_playing then
+            Game.battle.music:play(Game.battle.music.current)
+            Game.battle.music:fade(1, 10/30)
+        end
+
+        if Game.fader then
+            Game.fader.alpha = 0
+        end
+
+        if qte.failed then
+
+            -----------------------------------------------
+            -- ПЛОХОЙ ИСХОД (раздел 18) -- ИМИТАЦИЯ КРАША
+            --
+            -- love.event.quit() по-прежнему реально закрывает
+            -- игру (буквальная трактовка "игра должна
+            -- вылететь") -- это не изменилось и не может быть
+            -- изменено без нарушения буквального текста
+            -- канона. Добавлена только визуальная подводка
+            -- перед закрытием: быстрое мигание случайным
+            -- цветом + тряска экрана, чтобы это ощущалось как
+            -- сбой, а не как чистый переход в меню.
+            -----------------------------------------------
+
+            cutscene:setSpeaker(nil)
+            cutscene:closeText()
+
+            for _ = 1, 8 do
+                Game.battle:shake(10)
+
+                if Game.fader then
+                    Game.fader.fade_color = {
+                        math.random(),
+                        math.random(),
+                        math.random(),
+                    }
+                    Game.fader.alpha = 1
+                end
+
+                cutscene:wait(0.05)
+            end
+
+            if Game.fader then
+                Game.fader.fade_color = { 0, 0, 0 }
+                Game.fader.alpha = 1
+            end
+
+            cutscene:wait(0.3)
+
+            love.event.quit()
+            return
+        end
+
+        -----------------------------------------------
+        -- ХОРОШИЙ ИСХОД (раздел 18-19)
+        -----------------------------------------------
+
+        if kyle and kyle.onSideBQteSuccess then
+            kyle:onSideBQteSuccess()
+        end
+    end,
 }
+
+return _kyle_cutscenes
