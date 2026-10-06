@@ -34,7 +34,7 @@ function BladeDart:init(x, y, dir_angle, aim_time, damage)
     self.collider = nil
     self.remove_offscreen = false
     self:setOrigin(0.5, 0.5)
-    self:setScale(0.66, 0.66)
+    self:setScale(0.85, 0.85)
     self.alpha = 0
 end
 
@@ -88,7 +88,7 @@ function BladeDart:update()
                 length, 0.001, 0.12, SLASH_WIDTH, self.damage)
             self.state = "strike"
             self.t = 0
-            self:setScale(0.85, 0.85)
+            self:setScale(1.0, 1.0)
         end
     else -- strike: белая вспышка меча, быстро летит к душе и гаснет
         local k = self.t / 0.18
