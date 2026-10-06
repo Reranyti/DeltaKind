@@ -14,8 +14,8 @@
 
 local KnightBackground, super = Class(BattleBackground)
 
-local RING_INTERVAL = 0.9
-local RING_LIFE = 5.0
+local RING_INTERVAL = 0.4
+local RING_LIFE = 2.6
 
 function KnightBackground:init()
     super.init(self)
@@ -63,8 +63,12 @@ function KnightBackground:update()
     -- Кольца
     self.ring_timer = self.ring_timer - DT
     if self.ring_timer <= 0 then
-        self.ring_timer = RING_INTERVAL * (hot and 0.6 or 1)
-        table.insert(self.rings, { age = 0 })
+        self.ring_timer = RING_INTERVAL * (hot and 0.55 or 1) * (0.7 + math.random() * 0.6)
+        table.insert(self.rings, {
+            age = 0,
+            spin = (math.random() < 0.5 and -1 or 1) * (0.2 + math.random() * 0.6),
+            kind = math.random(1, 3), -- 1 ромб, 2 вращающийся квадрат, 3 двойной ромб
+        })
     end
     for i = #self.rings, 1, -1 do
         local r = self.rings[i]
@@ -77,7 +81,7 @@ function KnightBackground:update()
     -- Разрезы
     self.slash_timer = self.slash_timer - DT
     if self.slash_timer <= 0 then
-        self.slash_timer = (hot and 0.8 or 2.2) + math.random() * 1.5
+        self.slash_timer = (hot and 0.35 or 0.9) + math.random() * 0.8
         table.insert(self.slashes, {
             age = 0,
             angle = math.random() * math.pi,
@@ -106,23 +110,52 @@ function KnightBackground:drawBackground()
     Draw.setColor(0, 0, 0, a)
     Draw.rectangle("fill", -10, -10, SCREEN_WIDTH + 20, SCREEN_HEIGHT + 20)
 
-    -- Ромбовидные кольца: растут и гаснут
+    -- Кольца: три вида, вращение, ускоряющийся рост
     love.graphics.setLineWidth(2)
     for _, r in ipairs(self.rings) do
         local t = r.age / RING_LIFE
-        local radius = 40 + t * t * 700
-        local alpha = (1 - t) * 0.35 * a
+        local radius = 30 + t * t * 760
+        local alpha = (1 - t) * 0.5 * a
         Draw.setColor(cr, cg, cb, alpha)
-        diamond(cx, cy, radius)
-        -- Внутренний тонкий ромб для глубины
-        Draw.setColor(cr, cg, cb, alpha * 0.4)
-        diamond(cx, cy, radius * 0.92)
+        if r.kind == 1 then
+            diamond(cx, cy, radius)
+        elseif r.kind == 2 then
+            love.graphics.push()
+            love.graphics.translate(cx, cy)
+            love.graphics.rotate(r.age * r.spin * 2)
+            love.graphics.rectangle("line", -radius * 0.7, -radius * 0.7, radius * 1.4, radius * 1.4)
+            love.graphics.pop()
+        else
+            diamond(cx, cy, radius)
+            Draw.setColor(cr, cg, cb, alpha * 0.6)
+            diamond(cx, cy, radius * 0.8)
+        end
+    end
+
+    -- Лучи из центра: медленно вращаются, пульсируют в такт
+    local beat = 0.5 + 0.5 * math.sin(self.time * 4)
+    love.graphics.setLineWidth(1)
+    for i = 0, 11 do
+        local ang = self.time * 0.15 + i * math.pi / 6
+        Draw.setColor(cr, cg, cb, (0.05 + 0.08 * beat) * a)
+        love.graphics.line(cx, cy, cx + math.cos(ang) * 900, cy + math.sin(ang) * 900)
+    end
+
+    -- Осколки: мелкие ромбы летят от центра
+    for i = 1, 14 do
+        local seed = i * 7.31
+        local life = (self.time * 0.5 + seed) % 1
+        local ang = seed * 2.4
+        local dist = life * life * 600 + 30
+        local px, py = cx + math.cos(ang) * dist, cy + math.sin(ang) * dist
+        Draw.setColor(cr, cg, cb, (1 - life) * 0.6 * a)
+        diamond(px, py, 3 + life * 6)
     end
 
     -- Разрезы: быстрый белый росчерк на весь экран
     for _, s in ipairs(self.slashes) do
         local t = s.age / 0.5
-        local alpha = (1 - t) * (1 - t) * 0.8 * a
+        local alpha = (1 - t) * (1 - t) * 0.9 * a
         local dx, dy = math.cos(s.angle), math.sin(s.angle)
         local px, py = cx - dy * s.offset, cy + dx * s.offset
         local len = 900
