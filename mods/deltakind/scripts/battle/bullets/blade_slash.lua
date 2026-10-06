@@ -13,7 +13,7 @@ local BladeSlash, super = Class(Bullet)
 
 local FADE_TIME = 0.25
 
-function BladeSlash:init(x, y, angle, length, windup, active, width, damage)
+function BladeSlash:init(x, y, angle, length, windup, active, width, damage, spin)
     super.init(self, x, y)
 
     self.angle = angle or 0
@@ -22,6 +22,8 @@ function BladeSlash:init(x, y, angle, length, windup, active, width, damage)
     self.active = active or 0.12
     self.slash_width = width or 28
     self.damage = damage or 200
+    -- Вращение во время телеграфа (рад/с), плавно затухает к удару
+    self.spin = spin or 0
 
     self.phase = "windup"
     self.phase_time = 0
@@ -71,6 +73,10 @@ function BladeSlash:update()
     self.pulse = self.pulse + DT
 
     if self.phase == "windup" then
+        if self.spin ~= 0 then
+            local progress = math.min(self.phase_time / self.windup, 1)
+            self.angle = self.angle + self.spin * DT * (1 - progress) * (1 - progress)
+        end
         if self.phase_time >= self.windup then
             self:setPhase("strike")
         end

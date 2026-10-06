@@ -35,8 +35,8 @@ function actor:init()
         ["slash_front"]  = {"slash_front", 0.16, false},
     }
 
-    -- Кадры разного размера выравниваем по низу-центру кадра idle (136x146):
-    -- ox = (136 - w) / 2, oy = 146 - h.
+    -- Кадры разного размера выравниваем по нижнему ПРАВОМУ краю кадра idle (136x146), широкие позы растут влево:
+    -- ox = 136 - w, oy = 146 - h.
     local sizes = {
         idle         = {136, 146},
         battle_intro = {244, 281},
@@ -53,7 +53,7 @@ function actor:init()
 
     self.offsets = {}
     for name, size in pairs(sizes) do
-        local off = {(136 - size[1]) / 2, 146 - size[2]}
+        local off = {136 - size[1], 146 - size[2]}
         self.offsets[name] = off
     end
 end
