@@ -40,4 +40,8 @@ function Dummy:init()
     }
 end
 
+function Dummy:createBackground()
+    return Game.battle:addChild(KnightBackground())
+end
+
 return Dummy

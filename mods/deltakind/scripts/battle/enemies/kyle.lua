@@ -963,6 +963,20 @@ function Kyle:update()
 
     self:updateAttackAnimation()
 
+    -- Цвет рамки арены по стороне/фазе
+    local arena = Game.battle and Game.battle.arena
+    if arena then
+        if self.phase >= 2 then
+            arena.color = {1, 0.2, 0.2}
+        elseif Kristal.Config.sideC then
+            arena.color = {0.35, 1, 0.45}
+        elseif Kristal.Config.sideB then
+            arena.color = {0.3, 0.8, 1}
+        else
+            arena.color = {1, 1, 1}
+        end
+    end
+
     -------------------------------------------------------
     -- ПЕРЕХОД ВО 2 ФАЗУ
     -------------------------------------------------------
