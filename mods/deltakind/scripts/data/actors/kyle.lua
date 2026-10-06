@@ -11,10 +11,10 @@ function actor:init()
     self.path = "enemies/knight"
     self.default = "idle"
 
-    self.width = 136
-    self.height = 146
+    self.width = 100
+    self.height = 88
 
-    self.hitbox = {0, 0, 136, 146}
+    self.hitbox = {0, 0, 100, 88}
 
     self.animations = {
         -- Бой
