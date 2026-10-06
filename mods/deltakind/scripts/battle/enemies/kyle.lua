@@ -1,7 +1,7 @@
 local Kyle, super = Class(EnemyBattler)
 
 function Kyle:init()
-    super.init(self)
+    super.init(self, "kyle")
 
     self.name = "Кайл"
     self.destiny_name = "Рыцарь"
