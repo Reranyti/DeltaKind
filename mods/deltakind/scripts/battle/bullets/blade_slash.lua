@@ -93,14 +93,33 @@ function BladeSlash:draw()
     local x1, y1 = -dx * self.length, -dy * self.length
     local x2, y2 = dx * self.length, dy * self.length
 
+    -- Обрезаем по арене с запасом, чтобы разрез не закрывал интерфейс.
+    local arena = Game.battle and Game.battle.arena
+    local old_sx, old_sy, old_sw, old_sh = love.graphics.getScissor()
+    if arena then
+        local m = 24
+        local ax, ay = arena:getLeft() - m, arena:getTop() - m
+        local aw, ah = arena:getRight() - arena:getLeft() + m * 2, arena:getBottom() - arena:getTop() + m * 2
+        love.graphics.setScissor(math.floor(ax), math.floor(ay), math.ceil(aw), math.ceil(ah))
+    end
+
     love.graphics.setLineStyle("rough")
 
     if self.phase == "windup" then
         local progress = math.min(self.phase_time / self.windup, 1)
         local pulse = 0.5 + 0.5 * math.sin(self.pulse * (10 + progress * 20))
-        local alpha = 0.35 + 0.45 * pulse
-        -- линия слегка толстеет к концу телеграфа
-        Draw.setColor(1, 0.1, 0.1, alpha)
+        -- Зона будущего удара: красная полоса шириной с разрез, ярче к концу телеграфа
+        local pts = self:getSlashPoints()
+        Draw.setColor(1, 0.05, 0.05, 0.10 + 0.25 * progress + 0.10 * pulse)
+        love.graphics.polygon("fill",
+            pts[1][1], pts[1][2], pts[2][1], pts[2][2],
+            pts[3][1], pts[3][2], pts[4][1], pts[4][2])
+        -- Яркие края полосы и осевая линия
+        Draw.setColor(1, 0.15, 0.15, 0.55 + 0.4 * pulse)
+        love.graphics.setLineWidth(2)
+        love.graphics.line(pts[1][1], pts[1][2], pts[2][1], pts[2][2])
+        love.graphics.line(pts[4][1], pts[4][2], pts[3][1], pts[3][2])
+        Draw.setColor(1, 0.4, 0.4, 0.5 + 0.5 * pulse)
         love.graphics.setLineWidth(1 + progress * 2)
         love.graphics.line(x1, y1, x2, y2)
     elseif self.phase == "strike" then
@@ -120,6 +139,7 @@ function BladeSlash:draw()
             x2 - nx * h, y2 - ny * h, x1 - nx * h, y1 - ny * h)
     end
 
+    love.graphics.setScissor(old_sx, old_sy, old_sw, old_sh)
     love.graphics.setLineWidth(1)
     Draw.setColor(1, 1, 1, 1)
 
