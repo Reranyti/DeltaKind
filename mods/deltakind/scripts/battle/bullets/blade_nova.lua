@@ -69,11 +69,14 @@ function BladeNova:explode()
     if self.wave then
         local s = math.max(0.5, self.cur_scale)
         self.wave:spawnBullet("blade_burst", self.x, self.y, s * 1.7, 0.6)
-        local n = 5
-        for i = 0, n - 1 do
-            local ang = self.base_angle + i * (math.pi * 2 / n) + MathUtils.random(-0.25, 0.25)
-            self.wave:spawnBullet("blade_shard", self.x, self.y, ang, MathUtils.random(1.4, 4.5),
-                math.ceil(self.damage), MathUtils.random(1.6, 2.2), MathUtils.random(15, 22), math.random() < 0.12)
+        -- ровно 6 осколков через 60° (как в оригинале): 3 коротких и медленных
+        -- (внутренний треугольник) и 3 длинных и быстрых (внешний), через один
+        for i = 0, 5 do
+            local ang = self.base_angle + i * math.pi / 3
+            local long = (i % 2 == 0)
+            self.wave:spawnBullet("blade_shard", self.x, self.y, ang,
+                long and 4.8 or 2.2, math.ceil(self.damage),
+                long and 2.0 or 1.5, long and 20 or 16, false)
         end
     end
     self:remove()
