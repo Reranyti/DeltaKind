@@ -19,7 +19,7 @@ function BladeShard:init(x, y, angle, speed, damage, life, size, gray)
     local s = (size or 12) / 32
     self:setOrigin(0.5, 0.5)
     self:setScale(s, s)
-    self.rotation = -math.pi / 2   -- остриё вверх, не вращается
+    self.rotation = angle          -- в начале остриё по направлению полёта
 
     self.can_graze = true
     self.destroy_on_hit = true
@@ -39,6 +39,13 @@ function BladeShard:update()
     if self.t > self.life * 0.75 then self.collider = nil end
     local k = self.t / self.life
     local a = 1 - math.max(0, (k - 0.55) / 0.45)
+    -- как в оригинале: сначала остриё летит вперёд, по мере замедления
+    -- плавно разворачивается остриём вверх
+    local u = MathUtils.clamp((k - 0.2) / 0.35, 0, 1)
+    u = u * u * (3 - 2 * u)
+    local up = -math.pi / 2
+    local diff = (up - self.angle + math.pi) % (math.pi * 2) - math.pi
+    self.rotation = self.angle + diff * u
     if self.sprite then
         if self.gray then self.sprite:setColor(0.7, 0.7, 0.7, a * 0.8)
         else self.sprite:setColor(1, 1, 1, a) end
