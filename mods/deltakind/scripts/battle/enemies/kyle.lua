@@ -60,6 +60,7 @@ function Kyle:init()
     -------------------------------------------------------
 
     self.waves = {
+        "BladeStars",
         "BladeLines",
         "BladeCross",
         "BladeSeek",
@@ -911,6 +912,7 @@ end
 
 Kyle.wave_animations = {
     BladeLines    = "slash",
+    BladeStars    = "point",
     BladeCross    = "flurry",
     BladeSeek     = "rush_clash",
     BladeSpin     = "slash",
