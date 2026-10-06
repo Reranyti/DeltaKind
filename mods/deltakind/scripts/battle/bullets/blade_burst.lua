@@ -30,7 +30,8 @@ function BladeBurst:update()
     local s = self.base * (0.6 + 0.55 * math.min(1, k * 2.2))
     self:setScale(s, s)
     self.rotation = self.rot0
-    if self.sprite then self.sprite:setColor(0.9, 0.9, 0.9, 0.9 * (1 - k * k)) end
+    local white = math.max(0, 1 - self.t / 0.1)   -- белая вспышка первые 0.1 с
+    if self.sprite then self.sprite:setColor(0.9 + 0.1 * white, 0.9 + 0.1 * white, 0.9 + 0.1 * white, 0.9 * (1 - k * k) + 0.1 * white) end
     super.update(self)
 end
 

@@ -35,8 +35,8 @@ function BladeCone:update()
 end
 
 -- Треугольник конуса как меш с текстурой, UV считаются от мировых координат
-local function coneMesh(self, tex, du, dv)
-    local l, sp, a = self.length, self.spread, self.angle
+local function coneMesh(self, tex, du, dv, spread_mul)
+    local l, sp, a = self.length, self.spread * (spread_mul or 1), self.angle
     local pts = {
         { 0, 0 },
         { math.cos(a - sp) * l, math.sin(a - sp) * l },
@@ -65,8 +65,15 @@ function BladeCone:draw()
     else
         local k = math.min(1, (self.t - FLASH) / 0.35)
         if self.tex_smoke then
-            local m = coneMesh(self, self.tex_smoke, self.t * 0.04, self.t * 0.015)
-            Draw.setColor(1, 1, 1, 0.55 + 0.25 * k)
+            -- размытие ветра: несколько проходов с разным раствором (мягкие края) + пульс
+            local pulse = 1 + 0.08 * math.sin(self.t * 7)
+            local du, dv = self.t * 0.04, self.t * 0.015
+            Draw.setColor(1, 1, 1, 0.16 * k)
+            love.graphics.draw(coneMesh(self, self.tex_smoke, du, dv, 1.14))
+            Draw.setColor(1, 1, 1, 0.22 * k)
+            love.graphics.draw(coneMesh(self, self.tex_smoke, du * 1.2, dv, 1.07))
+            local m = coneMesh(self, self.tex_smoke, du, dv)
+            Draw.setColor(1, 1, 1, (0.45 + 0.2 * k) * pulse)
             love.graphics.draw(m)
             -- второй проход со сложением: делает дымку ярким фиолетовым, как в оригинале
             love.graphics.setBlendMode("add")

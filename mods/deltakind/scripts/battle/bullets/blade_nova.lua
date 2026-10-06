@@ -4,22 +4,22 @@
 -- Графика: ОРИГИНАЛЬНЫЕ спрайты звёзд из спрайт-листа
 --   bullets/orig/star_g{0..3}_f{0,1}  (контур; кадры f0/f1 мерцают).
 --
--- Механика по раскадровке оригинала:
---   * рождается мелкой у кончика меча и медленно (~110 px/с) идёт налево
---     веером (угол внутри конуса); растёт по мере удаления; не
---     останавливается в арене и может уйти за левый край;
---   * большие звёзды получают горизонтальную «строчную» заливку;
---   * стадия "red" (общая для всех звёзд волны): замирает, краснеет,
---     из неё идут мягкие лучи света;
---   * стадия "boom": все звёзды взрываются: серая вспышка + осколки.
--- Опасна только центральная точка звезды.
+-- Механика (раскадровка оригинала):
+--   * рождается мелкой у кончика меча и идёт налево веером (~148 px/с),
+--     растёт с расстоянием, может уйти за левый край;
+--   * стадия "red" (общая): замирает, краснеет, из неё идут лучи света;
+--   * стадия "boom": все звёзды взрываются: вспышка, серая звезда, осколки.
+-- Анимация: «выскок» при появлении, покачивание, пульс, шлейф-послеобразы,
+-- вращающиеся лучи, заряд с дрожью перед взрывом.
 -----------------------------------------------------------
 
 local BladeNova, super = Class(Bullet)
 
-local SPEED = 148       -- px/с (оригинал: ~145)
-local GROW_DIST = 190   -- расстояние, на котором звезда достигает полного размера
-local SPR = 64          -- размер исходного спрайта
+local SPEED = 148
+local GROW_DIST = 190
+local SPR = 64
+local TRAIL = 4
+local TRAIL_STEP = 0.045
 
 function BladeNova:init(x, y, angle, damage, max_scale)
     local g = math.random(0, 3)
@@ -30,15 +30,18 @@ function BladeNova:init(x, y, angle, damage, max_scale)
     self.angle = angle
     self.speed = SPEED * MathUtils.random(0.85, 1.2)
     self.damage = damage or 40
-    -- масштаб относительно 64-px спрайта: у оригинала звёзды ~ от 9 до ~45 px
     self.max_scale = max_scale or 0.6
     self.t = 0
     self.red_t = 0
     self.dist = 0
     self.frame = 1
+    self.phase = MathUtils.random(0, math.pi * 2)
     self.base_angle = MathUtils.random(0, math.pi * 2)
+    self.trail = {}
+    self.trail_t = 0
+    self.shake_x, self.shake_y = 0, 0
+    self.cur_scale = 0.14
 
-    -- лучи для красной стадии (короткие мягкие + иногда вертикальный)
     self.rays = {}
     for i = 1, 6 do
         self.rays[i] = {
@@ -54,8 +57,7 @@ function BladeNova:init(x, y, angle, damage, max_scale)
     self.destroy_on_hit = true
     self.remove_offscreen = false
     self:setOrigin(0.5, 0.5)
-    self:setScale(0.14, 0.14)
-    -- опасна только центральная точка звезды (маленький круг в спрайтовых px)
+    self:setScale(0.05, 0.05)
     self.collider = CircleCollider(self, 0, 0, 9)
 end
 
@@ -65,7 +67,7 @@ end
 
 function BladeNova:explode()
     if self.wave then
-        local s = math.max(0.5, self.scale_x)
+        local s = math.max(0.5, self.cur_scale)
         self.wave:spawnBullet("blade_burst", self.x, self.y, s * 1.7, 0.6)
         local n = 5
         for i = 0, n - 1 do
@@ -83,21 +85,49 @@ function BladeNova:update()
 
     if stage == "fly" then
         self.dist = self.dist + self.speed * DT
+        local wob = math.sin(self.t * 5 + self.phase) * 3
         self.x = self.sx0 + math.cos(self.angle) * self.dist
-        self.y = self.sy0 + math.sin(self.angle) * self.dist
+        self.y = self.sy0 + math.sin(self.angle) * self.dist + wob
         local e = math.min(1, self.dist / GROW_DIST)
-        local s = 0.14 + (self.max_scale - 0.14) * e
-        self:setScale(s, s)
+        local base = 0.14 + (self.max_scale - 0.14) * e
+        -- «выскок» при появлении и лёгкий пульс
+        local pop = 1 + 0.35 * math.sin(math.min(1, self.t / 0.22) * math.pi)
+        local pulse = 1 + 0.05 * math.sin(self.t * 12 + self.phase)
+        self.cur_scale = base * pop * pulse
+        self:setScale(self.cur_scale, self.cur_scale)
+        if self.sprite then self.sprite.rotation = math.sin(self.t * 2 + self.phase) * 0.25 end
         -- мерцание кадров контура
         local f = (math.floor(self.t / 0.12) % 2 == 0) and 0 or 1
         if f ~= self.frame - 1 then
             self.frame = f + 1
             if self.sprite then self.sprite:setTexture("bullets/orig/star_g" .. self.group .. "_f" .. f) end
         end
+        -- шлейф: запоминаем прошлые позиции
+        self.trail_t = self.trail_t + DT
+        if self.trail_t >= TRAIL_STEP then
+            self.trail_t = 0
+            table.insert(self.trail, 1, { x = self.x, y = self.y, s = self.cur_scale })
+            if #self.trail > TRAIL then table.remove(self.trail) end
+        end
         if self.x < -70 then self:remove() return end
     elseif stage == "red" then
         self.red_t = self.red_t + DT
-        if self.sprite then self.sprite:setColor(0.78, 0.2, 0.2, 0.85) end
+        -- заряд: пульс, к концу дрожь и набухание
+        local charge = math.min(1, self.red_t / 1.0)
+        local pulse = 1 + 0.07 * math.sin(self.red_t * (10 + charge * 20))
+        local grow = 1 + 0.12 * charge * charge
+        local s = self.cur_scale * pulse * grow
+        self:setScale(s, s)
+        if charge > 0.6 then
+            self.shake_x = MathUtils.random(-1.6, 1.6) * charge
+            self.shake_y = MathUtils.random(-1.6, 1.6) * charge
+        end
+        if self.sprite then
+            local b = 0.65 + 0.25 * math.sin(self.red_t * 9)
+            self.sprite:setColor(0.55 + 0.4 * b, 0.12, 0.12, 0.9)
+            self.sprite.rotation = self.sprite.rotation + DT * 0.5
+        end
+        self.trail = {}
     else
         self:explode()
         return
@@ -115,18 +145,31 @@ local function ray(a, len, alpha)
 end
 
 function BladeNova:draw()
-    -- координаты ниже: в «экранных» пикселях (компенсируем масштаб спрайта)
     local sx = math.max(0.01, self.scale_x)
     love.graphics.push()
     love.graphics.scale(1 / sx, 1 / sx)
 
-    if self:getStage() == "red" then
-        local k = math.min(1, self.red_t / 0.9)
-        for _, r in ipairs(self.rays) do
-            ray(r.a, r.len * (0.4 + 0.6 * k), 0.06 + 0.17 * k)
+    -- шлейф-послеобразы (за звездой, затухающие)
+    if self:getStage() == "fly" and #self.trail > 0 then
+        local tex = Assets.getTexture("bullets/orig/star_g" .. self.group .. "_f0")
+        if tex then
+            for i, h in ipairs(self.trail) do
+                local a = 0.28 * (1 - (i - 1) / TRAIL)
+                Draw.setColor(1, 1, 1, a)
+                Draw.draw(tex, h.x - self.x, h.y - self.y, 0, h.s, h.s, SPR / 2, SPR / 2)
+            end
         end
     end
-    -- «строчная» заливка у больших звёзд в полёте (как у оригинала)
+
+    if self:getStage() == "red" then
+        local k = math.min(1, self.red_t / 0.9)
+        local spin = self.red_t * 0.45
+        for _, r in ipairs(self.rays) do
+            local pulse = 0.85 + 0.15 * math.sin(self.red_t * 8 + r.a * 3)
+            ray(r.a + spin, r.len * (0.4 + 0.6 * k) * pulse, 0.06 + 0.17 * k)
+        end
+    end
+    -- «строчная» заливка у больших звёзд в полёте
     if self:getStage() == "fly" and sx > 0.45 then
         local R = (SPR / 2) * sx * 0.8
         Draw.setColor(1, 1, 1, 0.75)
@@ -138,7 +181,16 @@ function BladeNova:draw()
     end
     love.graphics.pop()
     Draw.setColor(1, 1, 1, 1)
-    super.draw(self)
+
+    -- дрожь перед взрывом
+    if self.shake_x ~= 0 or self.shake_y ~= 0 then
+        love.graphics.push()
+        love.graphics.translate(self.shake_x / sx, self.shake_y / sx)
+        super.draw(self)
+        love.graphics.pop()
+    else
+        super.draw(self)
+    end
 end
 
 return BladeNova
