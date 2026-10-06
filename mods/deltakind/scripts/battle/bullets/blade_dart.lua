@@ -2,7 +2,7 @@
 -- BLADE DART — меч атаки «Tracking Swords» (оригинал).
 --
 -- Графика: ОРИГИНАЛЬНЫЙ спрайт меча из спрайт-листа
---   bullets/orig/sword_long.png  (тёмный меч с белым контуром, смотрит вправо).
+--   bullets/orig/sword_knight.png  (орнаментальный меч с глазом, смотрит вправо).
 --
 -- Механика по раскадровке оригинала (38–46 с):
 --   aim    — меч стоит СНАРУЖИ арены, на линии от души (по сторонам света /
@@ -19,7 +19,7 @@ local SLASH_WIDTH = 14
 local MARGIN = 26   -- насколько меч стоит дальше границы арены
 
 function BladeDart:init(x, y, dir_angle, aim_time, damage)
-    super.init(self, x, y, "bullets/orig/sword_long")
+    super.init(self, x, y, "bullets/orig/sword_knight")
     if self.sprite then self.sprite:stop() end
 
     self.dir_angle = dir_angle      -- направление от души к мечу
@@ -34,7 +34,7 @@ function BladeDart:init(x, y, dir_angle, aim_time, damage)
     self.collider = nil
     self.remove_offscreen = false
     self:setOrigin(0.5, 0.5)
-    self:setScale(0.62, 0.62)
+    self:setScale(0.66, 0.66)
     self.alpha = 0
 end
 
@@ -88,7 +88,7 @@ function BladeDart:update()
                 length, 0.001, 0.12, SLASH_WIDTH, self.damage)
             self.state = "strike"
             self.t = 0
-            self:setScale(0.8, 0.8)
+            self:setScale(0.85, 0.85)
         end
     else -- strike: белая вспышка меча, быстро летит к душе и гаснет
         local k = self.t / 0.18
