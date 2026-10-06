@@ -350,6 +350,14 @@ function MainMenu:draw()
         love.graphics.rectangle("fill", 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
         Draw.setColor(1, 1, 1, 1)
     end
+    
+    -- Side-C menu theme.
+    -- A green overlay is drawn before the stage.
+    if Kristal.Config.sideC then
+        Draw.setColor(0, 1, 0, 0.55)
+        love.graphics.rectangle("fill", 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+        Draw.setColor(1, 1, 1, 1)
+    end
 
     self.stage:draw()
 
@@ -373,7 +381,13 @@ function MainMenu:drawBackground()
     if not (TARGET_MOD and self.selected_mod.preview) then
         -- We need to draw the background on a canvas
         local bg_canvas = Draw.pushCanvas(320, 240)
-        love.graphics.clear(0, 0, 0, 1)
+        
+        -- Side C: зелёный фон
+        if Kristal.Config.sideC then
+            love.graphics.clear(0, 0.3, 0, 1)
+        else
+            love.graphics.clear(0, 0, 0, 1)
+        end
 
         -- Set the shader to use
         love.graphics.setShader(self.BACKGROUND_SHADER)

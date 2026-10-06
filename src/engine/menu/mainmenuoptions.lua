@@ -685,12 +685,19 @@ function MainMenuOptions:initializeOptions()
             if Kristal.Config.sideB then
                 return "LOCKED"
             end
+            if Kristal.Config.sideC then
+                return "LOCKED"
+            end
             return "ON"
         end,
         function()
             -- Side-A can only be active at the start of a session.
-            -- Once Side-B is entered, returning to Side-A is forbidden.
+            -- Once Side-B or Side-C is entered, returning to Side-A is forbidden.
             if Kristal.Config.sideB then
+                Assets.stopAndPlaySound("ui_cancel")
+                return
+            end
+            if Kristal.Config.sideC then
                 Assets.stopAndPlaySound("ui_cancel")
                 return
             end
@@ -704,12 +711,57 @@ function MainMenuOptions:initializeOptions()
         "side",
         "Side-B",
         function()
+            if Kristal.Config.sideC then
+                return "LOCKED"
+            end
             return Kristal.Config.sideB and "ON" or "OFF"
         end,
         function()
+            if Kristal.Config.sideC then
+                Assets.stopAndPlaySound("ui_cancel")
+                return
+            end
+            
             Kristal.Config.sideA = false
             Kristal.Config.sideB = true
+            Kristal.Config.sideC = false
             self.menu.heart:setColor(0, 0.75, 1, 1)
+        end
+    )
+
+    self:registerOption(
+        "side",
+        "Side-C",
+        function()
+            -- Side C скрыт, пока не разблокирован в мета-данных
+            local deltakind_progress = DeltaKindMeta.getActiveSlotData()
+            if not deltakind_progress or not deltakind_progress.unlocked_side_c then
+                return nil  -- Не показываем опцию вообще
+            end
+            
+            if Kristal.Config.sideC then
+                return "ON"
+            end
+            return "OFF"
+        end,
+        function()
+            -- Если Side C не разблокирован, ничего не делаем
+            local deltakind_progress = DeltaKindMeta.getActiveSlotData()
+            if not deltakind_progress or not deltakind_progress.unlocked_side_c then
+                Assets.stopAndPlaySound("ui_cancel")
+                return
+            end
+            
+            -- Side C активируется ОДИН РАЗ и не может быть отключено
+            if Kristal.Config.sideC then
+                Assets.stopAndPlaySound("ui_cancel")
+                return
+            end
+            
+            Kristal.Config.sideA = false
+            Kristal.Config.sideB = false
+            Kristal.Config.sideC = true
+            self.menu.heart:setColor(1, 0.5, 0, 1)  -- оранжевое сердце для Side C
         end
     )
 end

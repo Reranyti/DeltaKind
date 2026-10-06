@@ -42,7 +42,7 @@ local ContinueQTE, super = Class()
 -- то есть цикл не завершится сам -- вызывающий код обязан
 -- либо передать final_textind явно через ContinueQTE(...),
 -- либо останавливать цикл по другому подтверждённому условию.
-ContinueQTE.FINAL_TEXTIND_PLACEHOLDER = nil
+ContinueQTE.FINAL_TEXTIND_PLACEHOLDER = 74
 
 ContinueQTE.FAST_SEGMENT_START = 14
 ContinueQTE.FAST_SEGMENT_COUNT = 60

@@ -24,10 +24,10 @@ function ShiftHell:onStart()
 
     local arena = Game.battle.arena
 
-    local step = 11
-    local speed = 17
-    local gap_size = 24
-    local wait_time = 0.55
+    local step = 13
+    local speed = 14
+    local gap_size = 36
+    local wait_time = 0.7
 
     self.timer:script(function(wait)
         while self.time > 1 do
@@ -43,14 +43,19 @@ function ShiftHell:onStart()
 
             local gap_y_left =
                 math.random(
-                    arena.top + 20,
-                    arena.bottom - 20
+                    arena.top + 30,
+                    arena.bottom - 30
                 )
 
+            -- Правый разрыв близко к левому (±50px) --
+            -- иначе найти общую зону невозможно.
             local gap_y_right =
-                math.random(
-                    arena.top + 20,
-                    arena.bottom - 20
+                math.max(
+                    arena.top + 30,
+                    math.min(
+                        arena.bottom - 30,
+                        gap_y_left + math.random(-50, 50)
+                    )
                 )
 
             for y = arena.top - 20, arena.bottom + 20, step do
@@ -96,6 +101,23 @@ function ShiftHell:onStart()
                             )
                     end
                 end
+            end
+
+            -- По одной медленной пуле в каждый разрыв
+            local sl = self:spawnBullet("bullets/smallbullet", arena.left - 200, gap_y_left)
+            if sl then
+                sl.physics.speed = speed * 0.4
+                sl.physics.direction = 0
+                sl:setColor(1, 0.4, 0)
+                sl.damage = math.ceil((enemy.attack or 10) * 0.5 * multiplier)
+            end
+
+            local sr = self:spawnBullet("bullets/smallbullet", arena.right + 200, gap_y_right)
+            if sr then
+                sr.physics.speed = speed * 0.4
+                sr.physics.direction = math.pi
+                sr:setColor(1, 0.4, 0)
+                sr.damage = math.ceil((enemy.attack or 10) * 0.5 * multiplier)
             end
 
             Assets.playSound("shatter", 0.4, 1.2)

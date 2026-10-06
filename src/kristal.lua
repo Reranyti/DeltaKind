@@ -1910,6 +1910,7 @@ function Kristal.loadConfig()
     -- Every launch must start on Side-A.
     config.sideA = true
     config.sideB = false
+    config.sideC = false
 
     return config
 end
@@ -1921,6 +1922,7 @@ function Kristal.saveConfig()
     -- Side selection is session-only and must never be persisted.
     config.sideA = nil
     config.sideB = nil
+    config.sideC = nil
 
     love.filesystem.write("settings.json", JSON.encode(config))
 end

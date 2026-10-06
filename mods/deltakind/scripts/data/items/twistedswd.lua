@@ -90,7 +90,7 @@ function item:init()
 end
 
 -----------------------------------------------------------
--- SIDE B: 1 HP/сек (раздел 13 канона)
+-- SIDE B: 20 HP/сек (тест)
 -----------------------------------------------------------
 
 function item:onBattleUpdate(battler)
@@ -99,10 +99,10 @@ function item:onBattleUpdate(battler)
         (battler.deltakind_twistedswd_timer or 0) +
         DTMULT
 
-    if battler.deltakind_twistedswd_timer >= 30 then
+    if battler.deltakind_twistedswd_timer >= 1.5 then
 
         battler.deltakind_twistedswd_timer =
-            battler.deltakind_twistedswd_timer - 30
+            battler.deltakind_twistedswd_timer - 1.5
 
         battler.chara:setHealth(
             battler.chara:getHealth() - 1

@@ -413,7 +413,7 @@ function Kyle:onBattleStart()
     )
         volume =
             math.min(
-                (volume or 1) * 1.35,
+                (volume or 1) * 1.8,
                 1
             )
 
@@ -423,6 +423,17 @@ function Kyle:onBattleStart()
             pitch,
             ...
         )
+    end
+
+    -------------------------------------------------------
+    -- ТЕСТ: HP Криса 1530 для быстрого тестирования порога.
+    -- УБРАТЬ перед релизом.
+    -------------------------------------------------------
+    if Kristal.Config.sideB then
+        local kris_battler = Game.battle:getPartyBattler("kris")
+        if kris_battler then
+            kris_battler.chara.health = 1530
+        end
     end
 
     -------------------------------------------------------
@@ -986,7 +997,15 @@ function Kyle:update()
     -- пока ничего не делает и служит точкой подключения.
     -------------------------------------------------------
 
-    if not self.side_b_continue_threshold_hit then
+    -- Порог HP для катсцены "ПРОДОЛЖАЙ" проверяется только:
+    --   1. В Phase 2 (после перехода Кайла)
+    --   2. После того как side_b_wear уже прошёл (side_b_intro_played)
+    --   3. Только в Side B
+    --   4. Только один раз (side_b_continue_threshold_hit)
+    if Kristal.Config.sideB
+    and self.phase == 2
+    and self.side_b_intro_played
+    and not self.side_b_continue_threshold_hit then
 
         local kris =
             Game.battle:getPartyBattler(
@@ -1786,4 +1805,3 @@ function Kyle:onAct(
 end
 
 return Kyle
-
