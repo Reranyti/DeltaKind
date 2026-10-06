@@ -60,6 +60,8 @@ function Kyle:init()
     -------------------------------------------------------
 
     self.waves = {
+        "BladeLines",
+        "BladeCross",
         "CircleBullets",
         "RotatingGrid",
         "Saw",
@@ -905,6 +907,8 @@ end
 -----------------------------------------------------------
 
 Kyle.wave_animations = {
+    BladeLines    = "slash",
+    BladeCross    = "flurry",
     CircleBullets = "flurry",
     RotatingGrid  = "rush_clash",
     Saw           = "slash",
