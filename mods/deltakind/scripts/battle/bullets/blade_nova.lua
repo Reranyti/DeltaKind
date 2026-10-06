@@ -1,6 +1,9 @@
 -----------------------------------------------------------
 -- BLADE NOVA — звезда атаки «Звёзды» (оригинал, фаза 1).
 --
+-- Графика: ОРИГИНАЛЬНЫЕ спрайты звёзд из спрайт-листа
+--   bullets/orig/star_g{0..3}_f{0,1}  (контур; кадры f0/f1 мерцают).
+--
 -- Механика по раскадровке оригинала:
 --   * рождается мелкой у кончика меча и медленно (~110 px/с) идёт налево
 --     веером (угол внутри конуса); растёт по мере удаления; не
@@ -14,20 +17,25 @@
 
 local BladeNova, super = Class(Bullet)
 
-local SPEED = 110       -- px/с
-local GROW_DIST = 300   -- расстояние, на котором звезда достигает полного размера
+local SPEED = 148       -- px/с (оригинал: ~145)
+local GROW_DIST = 190   -- расстояние, на котором звезда достигает полного размера
+local SPR = 64          -- размер исходного спрайта
 
 function BladeNova:init(x, y, angle, damage, max_scale)
-    super.init(self, x, y, "bullets/knight_bullet_star_0")
+    local g = math.random(0, 3)
+    super.init(self, x, y, "bullets/orig/star_g" .. g .. "_f1")
     if self.sprite then self.sprite:stop() end
+    self.group = g
     self.sx0, self.sy0 = x, y
     self.angle = angle
     self.speed = SPEED * MathUtils.random(0.85, 1.2)
     self.damage = damage or 40
-    self.max_scale = max_scale or 1.2
+    -- масштаб относительно 64-px спрайта: у оригинала звёзды ~ от 9 до ~45 px
+    self.max_scale = max_scale or 0.6
     self.t = 0
     self.red_t = 0
     self.dist = 0
+    self.frame = 1
     self.base_angle = MathUtils.random(0, math.pi * 2)
 
     -- лучи для красной стадии (короткие мягкие + иногда вертикальный)
@@ -46,8 +54,9 @@ function BladeNova:init(x, y, angle, damage, max_scale)
     self.destroy_on_hit = true
     self.remove_offscreen = false
     self:setOrigin(0.5, 0.5)
-    self:setScale(0.15, 0.15)
-    self.collider = CircleCollider(self, 0, 0, 5)
+    self:setScale(0.14, 0.14)
+    -- опасна только центральная точка звезды (маленький круг в спрайтовых px)
+    self.collider = CircleCollider(self, 0, 0, 9)
 end
 
 function BladeNova:getStage()
@@ -56,12 +65,13 @@ end
 
 function BladeNova:explode()
     if self.wave then
-        self.wave:spawnBullet("blade_burst", self.x, self.y, math.max(0.8, self.scale_x) * 1.15, 0.6)
+        local s = math.max(0.5, self.scale_x)
+        self.wave:spawnBullet("blade_burst", self.x, self.y, s * 1.7, 0.6)
         local n = 5
         for i = 0, n - 1 do
             local ang = self.base_angle + i * (math.pi * 2 / n) + MathUtils.random(-0.25, 0.25)
             self.wave:spawnBullet("blade_shard", self.x, self.y, ang, MathUtils.random(1.4, 4.5),
-                math.ceil(self.damage), MathUtils.random(1.6, 2.2), MathUtils.random(11, 17), math.random() < 0.12)
+                math.ceil(self.damage), MathUtils.random(1.6, 2.2), MathUtils.random(15, 22), math.random() < 0.12)
         end
     end
     self:remove()
@@ -76,16 +86,18 @@ function BladeNova:update()
         self.x = self.sx0 + math.cos(self.angle) * self.dist
         self.y = self.sy0 + math.sin(self.angle) * self.dist
         local e = math.min(1, self.dist / GROW_DIST)
-        local s = 0.15 + (self.max_scale - 0.15) * e
+        local s = 0.14 + (self.max_scale - 0.14) * e
         self:setScale(s, s)
-        if self.sprite then self.sprite.rotation = self.t * 1.0 end
+        -- мерцание кадров контура
+        local f = (math.floor(self.t / 0.12) % 2 == 0) and 0 or 1
+        if f ~= self.frame - 1 then
+            self.frame = f + 1
+            if self.sprite then self.sprite:setTexture("bullets/orig/star_g" .. self.group .. "_f" .. f) end
+        end
         if self.x < -70 then self:remove() return end
     elseif stage == "red" then
         self.red_t = self.red_t + DT
-        if self.sprite then
-            self.sprite:setColor(0.75, 0.2, 0.2, 0.8)
-            self.sprite.rotation = self.sprite.rotation + DT * 0.5
-        end
+        if self.sprite then self.sprite:setColor(0.78, 0.2, 0.2, 0.85) end
     else
         self:explode()
         return
@@ -103,6 +115,7 @@ local function ray(a, len, alpha)
 end
 
 function BladeNova:draw()
+    -- координаты ниже: в «экранных» пикселях (компенсируем масштаб спрайта)
     local sx = math.max(0.01, self.scale_x)
     love.graphics.push()
     love.graphics.scale(1 / sx, 1 / sx)
@@ -113,14 +126,14 @@ function BladeNova:draw()
             ray(r.a, r.len * (0.4 + 0.6 * k), 0.06 + 0.17 * k)
         end
     end
-    -- «строчная» заливка у больших звёзд в полёте
-    if self:getStage() == "fly" and sx > 0.85 then
-        local R = 30 * sx
+    -- «строчная» заливка у больших звёзд в полёте (как у оригинала)
+    if self:getStage() == "fly" and sx > 0.45 then
+        local R = (SPR / 2) * sx * 0.8
         Draw.setColor(1, 1, 1, 0.75)
         love.graphics.setLineWidth(1)
-        for y = -R * 0.8, R * 0.8, 5 do
-            local half = R * 0.75 * (1 - math.abs(y) / (R * 0.95))
-            love.graphics.line(-half, y, half, y)
+        for y = -R * 0.8, R * 0.8, 4 do
+            local half = R * (1 - math.abs(y) / (R * 1.0))
+            if half > 1 then love.graphics.line(-half, y, half, y) end
         end
     end
     love.graphics.pop()

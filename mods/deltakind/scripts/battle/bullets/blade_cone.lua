@@ -1,7 +1,10 @@
 -----------------------------------------------------------
 -- BLADE CONE — конус ветра из кончика меча Рыцаря (атака «Звёзды»).
--- Вспыхивает бело-розовым в начале и в конце, между вспышками —
--- полупрозрачный фиолетовый с розовыми полосами вдоль. Урона нет.
+--
+-- Рисуется ОРИГИНАЛЬНЫМИ текстурами из спрайт-листа (VFX «Bullet flow»):
+--   fx_flow_purple — фиолетовая дымка (медленно плывёт),
+--   fx_flow_lines  — розовые линии (бегут влево).
+-- Вспыхивает бело-розовым в начале и в конце. Урона нет.
 -----------------------------------------------------------
 
 local BladeCone, super = Class(Bullet)
@@ -17,14 +20,11 @@ function BladeCone:init(x, y, angle, length, spread, life)
     self.remove_offscreen = false
     self:setScale(1, 1)
     self.layer = BATTLE_LAYERS["bullets"] - 5
-    self.streaks = {}
-    for i = 1, 5 do
-        self.streaks[i] = {
-            y = MathUtils.random(-0.9, 0.9) * math.sin(spread) * length * 0.55,
-            len = MathUtils.random(0.2, 0.5) * length,
-            speed = MathUtils.random(0.5, 1.2),
-            off = MathUtils.random(0, 1),
-        }
+
+    self.tex_smoke = Assets.getTexture("bullets/orig/fx_flow_purple")
+    self.tex_lines = Assets.getTexture("bullets/orig/fx_flow_lines")
+    for _, t in ipairs({ self.tex_smoke, self.tex_lines }) do
+        if t then t:setWrap("repeat", "repeat") end
     end
 end
 
@@ -34,32 +34,51 @@ function BladeCone:update()
     super.update(self)
 end
 
+-- Треугольник конуса как меш с текстурой, UV считаются от мировых координат
+local function coneMesh(self, tex, du, dv)
+    local l, sp, a = self.length, self.spread, self.angle
+    local pts = {
+        { 0, 0 },
+        { math.cos(a - sp) * l, math.sin(a - sp) * l },
+        { math.cos(a + sp) * l, math.sin(a + sp) * l },
+    }
+    local verts = {}
+    for _, p in ipairs(pts) do
+        local wx, wy = self.x + p[1], self.y + p[2]
+        verts[#verts + 1] = { p[1], p[2], wx / SCREEN_WIDTH + du, wy / SCREEN_HEIGHT + dv, 1, 1, 1, 1 }
+    end
+    local mesh = love.graphics.newMesh(verts, "fan", "stream")
+    mesh:setTexture(tex)
+    return mesh
+end
+
 function BladeCone:draw()
     local l = self.length
     local sp = self.spread
     local flash = (self.t < FLASH) or (self.t > self.life - FLASH * 1.4)
 
-    local function tri()
+    if flash then
+        Draw.setColor(1, 0.85, 1, 0.8)
         love.graphics.polygon("fill", 0, 0,
             math.cos(self.angle - sp) * l, math.sin(self.angle - sp) * l,
             math.cos(self.angle + sp) * l, math.sin(self.angle + sp) * l)
-    end
-
-    if flash then
-        Draw.setColor(1, 0.85, 1, 0.8)
-        tri()
     else
         local k = math.min(1, (self.t - FLASH) / 0.35)
-        Draw.setColor(0.38, 0.08, 0.52, 0.30 + 0.30 * k)
-        tri()
-        Draw.setColor(1, 0.3, 0.8, 0.75)
-        love.graphics.setLineWidth(1)
-        for _, s in ipairs(self.streaks) do
-            local x2 = -(((self.t * s.speed + s.off) % 1) * l)
-            love.graphics.line(x2, s.y, x2 - s.len, s.y)
+        if self.tex_smoke then
+            local m = coneMesh(self, self.tex_smoke, self.t * 0.04, self.t * 0.015)
+            Draw.setColor(1, 1, 1, 0.55 + 0.25 * k)
+            love.graphics.draw(m)
+            -- второй проход со сложением: делает дымку ярким фиолетовым, как в оригинале
+            love.graphics.setBlendMode("add")
+            Draw.setColor(1.0, 0.7, 1.0, 0.55 * k)
+            love.graphics.draw(m)
+            love.graphics.setBlendMode("alpha")
+        end
+        if self.tex_lines then
+            Draw.setColor(1, 1, 1, 0.95)
+            love.graphics.draw(coneMesh(self, self.tex_lines, self.t * 0.35, 0))
         end
     end
-    love.graphics.setLineWidth(1)
     Draw.setColor(1, 1, 1, 1)
     super.draw(self)
 end

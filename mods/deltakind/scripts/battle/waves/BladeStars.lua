@@ -65,7 +65,7 @@ function BladeStars:onStart()
         -- 1.6–4.4: звёзды по одной веером внутри конуса
         for i = 1, count do
             local ang = math.pi + MathUtils.random(-0.4, 0.4)
-            local scale = (math.random() < 0.2) and MathUtils.random(1.2, 1.6) or MathUtils.random(0.8, 1.15)
+            local scale = (math.random() < 0.2) and MathUtils.random(0.78, 0.95) or MathUtils.random(0.52, 0.72)
             local s = self:spawnBullet("blade_nova", tipx, tipy, ang, damage, scale)
             if s then s.wave = self end
             wait(step)
