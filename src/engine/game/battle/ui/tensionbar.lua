@@ -564,40 +564,66 @@ end
 -- BACKGROUND
 -- =========================================================
 
+-- Палитры по сторонам: A — голубой→розовый→зелёный, B — синий→чёрный,
+-- C — зелёный→чёрный. stops: позиция 0..1 вдоль шкалы.
+local PALETTES = {
+    A = { accent = {0.55, 0.95, 1.0}, back = {0.01, 0.02, 0.04},
+          stops = { {0, {0.15, 0.85, 1.0}}, {0.5, {1.0, 0.38, 0.78}}, {1, {0.35, 1.0, 0.5}} } },
+    B = { accent = {0.35, 0.55, 1.0}, back = {0.0, 0.0, 0.03},
+          stops = { {0, {0.25, 0.5, 1.0}}, {1, {0.01, 0.02, 0.09}} } },
+    C = { accent = {0.35, 1.0, 0.5}, back = {0.0, 0.02, 0.0},
+          stops = { {0, {0.3, 1.0, 0.45}}, {1, {0.0, 0.06, 0.02}} } },
+}
+local SLANT = 10   -- наклон «клинка»
+
+local function getPalette()
+    if Kristal.Config.sideC then return PALETTES.C end
+    if Kristal.Config.sideB then return PALETTES.B end
+    return PALETTES.A
+end
+
+local function sampleStops(stops, t)
+    t = MathUtils.clamp(t, 0, 1)
+    for i = 1, #stops - 1 do
+        local t0, c0 = stops[i][1], stops[i][2]
+        local t1, c1 = stops[i + 1][1], stops[i + 1][2]
+        if t <= t1 then
+            local k = (t - t0) / math.max(1e-6, t1 - t0)
+            return c0[1] + (c1[1] - c0[1]) * k, c0[2] + (c1[2] - c0[2]) * k, c0[3] + (c1[3] - c0[3]) * k
+        end
+    end
+    local c = stops[#stops][2]
+    return c[1], c[2], c[3]
+end
+
+-- параллелограмм (наклонённый вправо), x..x+w, y..y+h
+local function slantPoly(mode, x, y, w, h, sl)
+    love.graphics.polygon(mode, x, y + h, x + w, y + h, x + w + sl, y, x + sl, y)
+end
+
 function TensionBar:drawBack()
-    local x = self:getBarX()
-    local y = self:getBarY()
-    local width = self:getBarWidth()
+    local x, y, w = self:getBarX(), self:getBarY(), self:getBarWidth()
+    local pal = getPalette()
+    local ac = pal.accent
+    local h = BAR_HEIGHT
 
-    Draw.setColor(COLOR_BORDER)
+    -- мягкое свечение контура
+    Draw.setColor(ac[1], ac[2], ac[3], 0.18)
+    slantPoly("fill", x - 4, y - 4, w + 8, h + 8, SLANT)
+    -- контур и подложка
+    Draw.setColor(ac[1], ac[2], ac[3], 1)
+    slantPoly("fill", x - 2, y - 2, w + 4, h + 4, SLANT)
+    Draw.setColor(pal.back[1], pal.back[2], pal.back[3], 1)
+    slantPoly("fill", x, y, w, h, SLANT)
 
-    love.graphics.rectangle(
-        "fill",
-        x - 3,
-        y - 3,
-        width + 6,
-        BAR_HEIGHT + 6
-    )
-
-    Draw.setColor(COLOR_BORDER_INNER)
-
-    love.graphics.rectangle(
-        "fill",
-        x - 1,
-        y - 1,
-        width + 2,
-        BAR_HEIGHT + 2
-    )
-
-    Draw.setColor(COLOR_BACK)
-
-    love.graphics.rectangle(
-        "fill",
-        x,
-        y,
-        width,
-        BAR_HEIGHT
-    )
+    -- риски через каждые 10% (как деления клинка)
+    Draw.setColor(ac[1], ac[2], ac[3], 0.22)
+    love.graphics.setLineWidth(1)
+    for i = 1, 9 do
+        local tx = x + w * i / 10
+        love.graphics.line(tx, y + h, tx + SLANT, y)
+    end
+    Draw.setColor(1, 1, 1, 1)
 end
 
 -- =========================================================
@@ -617,126 +643,59 @@ end
 -- =========================================================
 
 function TensionBar:drawFill()
-    local x = self:getBarX()
-    local y = self:getBarY()
-    local width = self:getBarWidth()
+    local x, y, width = self:getBarX(), self:getBarY(), self:getBarWidth()
+    local h = BAR_HEIGHT
+    local pal = getPalette()
+    local ac = pal.accent
+    local max_t = self:getMaxTension()
+    local percentage = MathUtils.clamp(self.current / max_t, 0, 1)
+    local fill_width = width * percentage
+    local now = love.timer.getTime()
 
-    -- REAL 750-point percentage.
-    local percentage =
-        MathUtils.clamp(
-            self.current / self:getMaxTension(),
-            0,
-            1
-        )
-
-    local fill_width =
-        width * percentage
-
-    if fill_width <= 0 then
-        return
-    end
-
-    local color =
-        self:getFillColor()
-
-    if self.maxed then
-        color =
-            self:getFillMaxColor()
-    end
-
-    Draw.setColor(color)
-
-    love.graphics.rectangle(
-        "fill",
-        x,
-        y,
-        fill_width,
-        BAR_HEIGHT
-    )
-
-    Draw.setColor(
-        COLOR_HIGHLIGHT
-    )
-
-    love.graphics.rectangle(
-        "fill",
-        x,
-        y,
-        fill_width,
-        2
-    )
-
-    -- =====================================================
-    -- PREVIEW
-    -- =====================================================
-
+    -- предпросмотр траты TP: пульсирующий хвост цвета стороны
     if self.tension_preview > 0 then
-        local preview_target =
-            MathUtils.clamp(
-                self.tension_preview,
-                0,
-                self:getMaxTension()
-            )
-
-        local preview_percentage =
-            preview_target /
-            self:getMaxTension()
-
-        local preview_width =
-            width *
-            preview_percentage
-
-        local additional_width =
-            preview_width -
-            fill_width
-
-        if additional_width > 0 then
-            local pulse =
-                math.abs(
-                    math.sin(
-                        self.tension_preview_timer / 8
-                    ) * 0.5
-                ) + 0.2
-
-            Draw.setColor(
-                1,
-                0.08,
-                0.08,
-                pulse
-            )
-
-            love.graphics.rectangle(
-                "fill",
-                x + fill_width,
-                y,
-                math.min(
-                    additional_width,
-                    width - fill_width
-                ),
-                BAR_HEIGHT
-            )
+        local pw = width * MathUtils.clamp(self.tension_preview, 0, max_t) / max_t
+        local extra = math.min(pw - fill_width, width - fill_width)
+        if extra > 0 then
+            local pulse = math.abs(math.sin(self.tension_preview_timer / 8) * 0.5) + 0.2
+            Draw.setColor(ac[1], ac[2], ac[3], pulse)
+            slantPoly("fill", x + fill_width, y, extra, h, SLANT)
         end
     end
 
-    -- End marker.
-    if fill_width > 0
-    and fill_width < width then
-
-        Draw.setColor(
-            1,
-            0.28,
-            0.28,
-            1
-        )
-
-        love.graphics.rectangle(
-            "fill",
-            x + fill_width - 1,
-            y,
-            2,
-            BAR_HEIGHT
-        )
+    if fill_width <= 0 then
+        Draw.setColor(1, 1, 1, 1)
+        return
     end
+
+    -- градиентная заливка полосками, скошенными как клинок
+    local step = 4
+    local px = 0
+    while px < fill_width do
+        local sw = math.min(step, fill_width - px)
+        local r, g, b = sampleStops(pal.stops, (px + sw / 2) / width)
+        local boost = self.maxed and (0.15 + 0.15 * math.sin(now * 10)) or 0
+        Draw.setColor(math.min(1, r + boost), math.min(1, g + boost), math.min(1, b + boost), 1)
+        slantPoly("fill", x + px, y, sw + 1, h, SLANT)
+        px = px + step
+    end
+
+    -- блик по верху
+    Draw.setColor(1, 1, 1, 0.3)
+    love.graphics.polygon("fill", x + SLANT * 0.8, y + 3, x + fill_width + SLANT * 0.8, y + 3,
+        x + fill_width + SLANT * 0.9, y, x + SLANT, y)
+
+    -- кончик клинка: яркий скошенный штрих на конце заливки
+    if fill_width < width then
+        Draw.setColor(1, 1, 1, 0.95)
+        love.graphics.setLineWidth(2)
+        love.graphics.line(x + fill_width, y + h, x + fill_width + SLANT, y)
+        Draw.setColor(ac[1], ac[2], ac[3], 0.35)
+        love.graphics.setLineWidth(6)
+        love.graphics.line(x + fill_width, y + h, x + fill_width + SLANT, y)
+        love.graphics.setLineWidth(1)
+    end
+    Draw.setColor(1, 1, 1, 1)
 end
 
 -- =========================================================
