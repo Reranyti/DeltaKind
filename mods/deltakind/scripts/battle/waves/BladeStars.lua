@@ -63,7 +63,6 @@ function BladeStars:onStart()
         wait(T_CONE_START)
 
         -- 1.0: конус ветра (вспышка в начале и в конце)
-        Assets.playSound("knight_stretch", 0.9)
         self:spawnBullet("blade_cone", tipx, tipy, math.pi, 700, 0.42, T_CONE_END - T_CONE_START)
         wait(T_STARS_START - T_CONE_START)
 
@@ -73,7 +72,6 @@ function BladeStars:onStart()
             local scale = (math.random() < 0.2) and MathUtils.random(0.78, 0.95) or MathUtils.random(0.52, 0.72)
             local s = self:spawnBullet("blade_nova", tipx, tipy, ang, damage, scale)
             if s then s.wave = self end
-            if i % 3 == 1 then Assets.playSound("knight_jump_quick", 0.35, MathUtils.random(0.9, 1.3)) end
             wait(step)
         end
 

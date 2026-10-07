@@ -38,9 +38,9 @@ function BladeSlash:init(x, y, angle, length, windup, active, width, damage, spi
     self:setScale(1, 1)
     self.collider = nil
 
-    if self.windup > 0.1 and love.timer.getTime() - last_wind_snd > 0.15 then
+    if self.spin ~= 0 and self.windup > 0.1 and love.timer.getTime() - last_wind_snd > 0.15 then
         last_wind_snd = love.timer.getTime()
-        Assets.playSound(self.spin ~= 0 and "knight_rotatingslash_line" or "knight_stretch", 0.6)
+        Assets.playSound("knight_rotatingslash_line", 0.6)
     end
     self.qs = {}
     for i = 0, 3 do self.qs[i] = Assets.getTexture("bullets/orig/fx_qs_" .. i) end

@@ -47,7 +47,6 @@ function BladeSeek:onStart()
             repeat di = math.random(1, 8) until di ~= last_i
             last_i = di
 
-            Assets.playSound("knight_teleport", 0.35, MathUtils.random(1.0, 1.4))
             local b = self:spawnBullet("blade_dart", 0, 0, dirs[di], aim, damage)
             if b then b.wave = self end
             wait(aim * 0.7)
