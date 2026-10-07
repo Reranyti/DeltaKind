@@ -11,7 +11,21 @@ local MUSIC = {
     },
 }
 
+-- Бой идёт в 60 кадров/с, даже если в настройках стоят 30 (иначе движение атак
+-- выглядит рваным, как лаги). Настройка игрока не меняется: после боя частота
+-- возвращается.
+local function wantSmoothFps()
+    local fps = Kristal.Config["fps"] or 30
+    if fps > 0 and fps < 60 then FRAMERATE = 60 end
+end
+
+function Battle:onRemove(parent)
+    super.onRemove(self, parent)
+    FRAMERATE = Kristal.Config["fps"] or 30
+end
+
 function Battle:update()
+    wantSmoothFps()
     super.update(self)
 
     if not self.enemies then
