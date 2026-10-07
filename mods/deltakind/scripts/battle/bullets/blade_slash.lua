@@ -29,7 +29,7 @@ function BladeSlash:init(x, y, angle, length, windup, active, width, damage, spi
     self.spin = spin or 0
     self.style = style or "white"   -- "rot" = красный «Вращающийся разрез» оригинала
     self.disc = disc            -- рисовать тёмно-красный круг вокруг центра взмаха
-    self.dots_time = (self.style == "rot") and math.min(0.3, self.windup * 0.4) or 0
+    self.dots_time = (self.style == "rot") and math.min(0.2, self.windup * 0.4) or 0
 
     self.phase = "windup"
     self.phase_time = 0
@@ -181,9 +181,21 @@ function BladeSlash:drawRot()
             Draw.setColor(r, g, b, alpha)
             love.graphics.polygon("fill", unpack(flat))
         end
-        wedge(W * 1.5, 1, 0.05, 0.05, 0.55 * a)   -- красный ореол
-        wedge(W, 1, 0.12, 0.12, a)                  -- красное тело
-        wedge(W * 0.42, 1, 0.82, 0.86, a)           -- розово-белая сердцевина
+        -- красное затухает и «возвращается к белому»: цвет уходит в белый
+        local wk = math.min(1, k * 1.6)
+        wedge(W * 1.5, 1, 0.05 + 0.95 * wk, 0.05 + 0.95 * wk, 0.55 * a)
+        wedge(W, 1, 0.12 + 0.88 * wk, 0.12 + 0.88 * wk, a)
+        wedge(W * 0.42, 1, 0.82 + 0.18 * wk, 0.86 + 0.14 * wk, a)
+    elseif self.phase == "glow" then
+        -- тонкая белая линия-послесвечение (как пунктир перед следующим взмахом)
+        love.graphics.setScissor()
+        local k = math.min(self.phase_time / GLOW_TIME, 1)
+        Draw.setColor(1, 1, 1, 0.6 * (1 - k))
+        love.graphics.setLineWidth(2)
+        love.graphics.line(-dx * L, -dy * L, dx * L, dy * L)
+        Draw.setColor(1, 1, 1, 0.2 * (1 - k))
+        love.graphics.setLineWidth(6)
+        love.graphics.line(-dx * L, -dy * L, dx * L, dy * L)
     end
 
     love.graphics.setScissor(old_sx, old_sy, old_sw, old_sh)

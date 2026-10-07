@@ -14,7 +14,7 @@ local COUNTS_P1 = {1, 2, 2, 3, 3, 4}
 local COUNTS_P2 = {3, 3, 4, 4, 4, 4}
 local ACTIVE_TIME = 0.14
 local FADE_TIME = 0.25
-local PAUSE_TIME = 0.25
+local PAUSE_TIME = 0.3
 local WIDTH = 22
 
 function BladeSpin:onStart()
@@ -22,7 +22,7 @@ function BladeSpin:onStart()
     local phase2 = enemy and enemy.phase == 2
 
     local counts = phase2 and COUNTS_P2 or COUNTS_P1
-    local windup = phase2 and 0.45 or 0.66
+    local windup = phase2 and 0.38 or 0.5
 
     self.time = #counts * (windup + ACTIVE_TIME) + (#counts - 1) * PAUSE_TIME + FADE_TIME + 0.3
 
@@ -41,7 +41,7 @@ function BladeSpin:onStart()
 
             if enemy and enemy.playPose then enemy:playPose("flurry", windup + 0.2) end
             local base = MathUtils.random(0, math.pi)
-            local spin = (math.random() < 0.5 and -1 or 1) * MathUtils.random(7, 10)
+            local spin = (math.random() < 0.5 and -1 or 1) * MathUtils.random(10, 14)
             for k = 1, count do
                 local ang = base + (k - 1) * (math.pi / count)
                 self:spawnBullet("blade_slash", sx, sy, ang, length, windup, ACTIVE_TIME, WIDTH, damage, spin, "rot", k == 1)
