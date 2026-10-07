@@ -39,7 +39,7 @@ function BladeStars:onStart()
 
     local multiplier =
         (enemy and enemy.getDifficultyMultiplier and enemy:getDifficultyMultiplier()) or 1
-    local damage = math.ceil(75 * (1 + (multiplier - 1) * 0.25))
+    local damage = math.ceil(130 * (1 + (multiplier - 1) * 0.25))
 
     self.stage = "fly"
     self.speed_mult = 1 / F

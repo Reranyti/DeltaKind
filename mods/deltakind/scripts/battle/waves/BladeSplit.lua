@@ -28,7 +28,7 @@ function BladeSplit:onStart()
     local multiplier =
         (enemy and enemy.getDifficultyMultiplier and enemy:getDifficultyMultiplier()) or 1
     local k = 1 + (multiplier - 1) * 0.25
-    local diamond_damage = math.ceil(100 * k)
+    local diamond_damage = math.ceil(130 * k)
 
     local length = math.sqrt(arena.width ^ 2 + arena.height ^ 2) + 40
     local base_dir = (math.random() < 0.5) and 0 or (math.pi / 2)
@@ -50,6 +50,7 @@ function BladeSplit:onStart()
             local off = MathUtils.random(-0.28, 0.28) * math.min(arena.width, arena.height)
             local cx, cy = arena.x + nx * off, arena.y + ny * off
 
+            if enemy and enemy.playPose then enemy:playPose("slash", windup + 0.15) end
             self:spawnBullet("blade_slash", cx, cy, dir, length, windup, ACTIVE_TIME, WIDTH, 30)
             wait(windup + ACTIVE_TIME)
 

@@ -28,7 +28,7 @@ function BladeSpin:onStart()
 
     local multiplier =
         (enemy and enemy.getDifficultyMultiplier and enemy:getDifficultyMultiplier()) or 1
-    local damage = math.ceil(75 * (1 + (multiplier - 1) * 0.25))
+    local damage = math.ceil(130 * (1 + (multiplier - 1) * 0.25))
 
     local arena = Game.battle.arena
     local length = math.sqrt(arena.width ^ 2 + arena.height ^ 2) + 40
@@ -39,6 +39,7 @@ function BladeSpin:onStart()
             local sx = soul and soul.x or arena.x
             local sy = soul and soul.y or arena.y
 
+            if enemy and enemy.playPose then enemy:playPose("flurry", windup + 0.2) end
             local base = MathUtils.random(0, math.pi)
             local spin = (math.random() < 0.5 and -1 or 1) * MathUtils.random(7, 10)
             for k = 1, count do

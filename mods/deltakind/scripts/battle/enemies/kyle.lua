@@ -937,19 +937,34 @@ Kyle.wave_poses = {
     -- «Звёзды»: рука вытянута, пока из пальца бьёт луч (0.68–3.13 с), потом возврат
     BladeStars = { {"point_in", 0.4, 2.73, "point_out"}, {"slash", 3.3, 0.8} },
     -- «Слежка»: быстрый выпад в начале, потом стойка
-    BladeSeek  = { {"rush_clash", 0.0, 0.7}, {"point", 3.0, 0.8} },
+    BladeSeek  = {},
     -- «Разрез поля»: взмах на каждом втором разрезе
-    BladeSplit = { {"slash", 0.2, 0.8}, {"slash", 2.2, 0.8}, {"slash", 4.2, 0.8} },
+    BladeSplit = {},
     -- «Вращающийся разрез»: взмахи в начале и в середине
-    BladeSpin  = { {"slash", 0.2, 0.9}, {"flurry", 3.0, 1.0} },
+    BladeSpin  = {},
     BladeLines = { {"slash", 0.3, 0.8} },
     BladeCross = { {"flurry", 0.3, 1.0} },
     -- «Рёв»: рёв в начале, взмах перед финальным разрезом
     BladeRoar  = { {"roaring", 0.0, 1.4}, {"slash", 4.8, 1.2} },
 }
 
+--- Короткая поза на каждый удар/бросок: рыцарь «бьёт» сам, а не только в начале атаки.
+function Kyle:playPose(anim, dur)
+    if self.hurt_timer and self.hurt_timer > 0 then return end
+    self:setAnimation(anim)
+    self.event_pose_t = dur or 0.4
+end
+
 function Kyle:updateAttackAnimation()
     local defending = Game.battle and Game.battle.state == "DEFENDING"
+
+    if self.event_pose_t then
+        self.event_pose_t = self.event_pose_t - DT
+        if self.event_pose_t <= 0 then
+            self.event_pose_t = nil
+            if not self.roar_timer then self:setAnimation("idle") end
+        end
+    end
 
     if defending and not self.attack_anim_active then
         self.attack_anim_active = true
@@ -971,7 +986,7 @@ function Kyle:updateAttackAnimation()
         self.pose_t = (self.pose_t or 0) + DT
         local seq = Kyle.wave_poses[self.current_wave]
         local cur = seq and seq[self.pose_idx]
-        if cur and self.pose_t >= cur[2] and not self.pose_end then
+        if cur and self.pose_t >= cur[2] and not self.pose_end and not self.event_pose_t then
             self:setAnimation(cur[1])
             self.pose_end = cur[2] + cur[3]
         end
