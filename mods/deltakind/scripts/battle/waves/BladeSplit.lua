@@ -51,7 +51,7 @@ function BladeSplit:onStart()
             local cx, cy = arena.x + nx * off, arena.y + ny * off
 
             if enemy and enemy.playPose then enemy:playPose("slash", windup + 0.15) end
-            self:spawnBullet("blade_slash", cx, cy, dir, length, windup, ACTIVE_TIME, WIDTH, 30)
+            self:spawnBullet("blade_slash", cx, cy, dir, length, windup, ACTIVE_TIME, WIDTH, 30, 0, "split")
             wait(windup + ACTIVE_TIME)
 
             -- ромбы из линии разреза в обе стороны (перпендикулярно линии)

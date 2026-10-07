@@ -124,7 +124,32 @@ function BladeSlash:drawRot()
         end
     end
 
-    if self.phase == "windup" then
+    if self.phase == "windup" and self.style == "split" then
+        clipArena()
+        -- толстая тёмно-красная полоса сужается в тонкую красную линию
+        local k = math.min(self.phase_time / self.windup, 1)
+        local W = 34 * (1 - k) ^ 1.3 + 2
+        local function band(width, r, g, b, alpha)
+            local N = 18
+            local flat = {}
+            for i = 0, N do
+                local sg = (i / N) * 2 - 1
+                local hw = width * 0.5 * (1 - math.abs(sg)) ^ 0.45
+                flat[#flat + 1] = dx * L * sg + nx * hw
+                flat[#flat + 1] = dy * L * sg + ny * hw
+            end
+            for i = N, 0, -1 do
+                local sg = (i / N) * 2 - 1
+                local hw = width * 0.5 * (1 - math.abs(sg)) ^ 0.45
+                flat[#flat + 1] = dx * L * sg - nx * hw
+                flat[#flat + 1] = dy * L * sg - ny * hw
+            end
+            Draw.setColor(r, g, b, alpha)
+            love.graphics.polygon("fill", unpack(flat))
+        end
+        band(W, 0.55, 0.0, 0.02, 0.95)
+        band(W * 0.35 + 1, 1, 0.12, 0.12, 0.85)
+    elseif self.phase == "windup" then
         clipArena()
         local t = self.phase_time
         if t < self.dots_time then
@@ -183,9 +208,15 @@ function BladeSlash:drawRot()
         end
         -- красное затухает и «возвращается к белому»: цвет уходит в белый
         local wk = math.min(1, k * 1.6)
-        wedge(W * 1.5, 1, 0.05 + 0.95 * wk, 0.05 + 0.95 * wk, 0.55 * a)
-        wedge(W, 1, 0.12 + 0.88 * wk, 0.12 + 0.88 * wk, a)
-        wedge(W * 0.42, 1, 0.82 + 0.18 * wk, 0.86 + 0.14 * wk, a)
+        if self.style == "split" then
+            -- белый мазок: чуть шире ореол, плотное белое тело
+            wedge(W * 0.9, 1, 1, 1, 0.3 * a)
+            wedge(W * 0.55, 1, 1, 1, a)
+        else
+            wedge(W * 1.5, 1, 0.05 + 0.95 * wk, 0.05 + 0.95 * wk, 0.55 * a)
+            wedge(W, 1, 0.12 + 0.88 * wk, 0.12 + 0.88 * wk, a)
+            wedge(W * 0.42, 1, 0.82 + 0.18 * wk, 0.86 + 0.14 * wk, a)
+        end
     elseif self.phase == "glow" then
         -- тонкая белая линия-послесвечение (как пунктир перед следующим взмахом)
         clipArena()
@@ -204,7 +235,7 @@ function BladeSlash:drawRot()
 end
 
 function BladeSlash:draw()
-    if self.style == "rot" then
+    if self.style == "rot" or self.style == "split" then
         self:drawRot()
         Draw.setColor(1, 1, 1, 1)
         return
