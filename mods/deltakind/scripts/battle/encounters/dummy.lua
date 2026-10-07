@@ -9,9 +9,9 @@ function Dummy:init()
     -- Стартовый трек выбирается по режиму.
     -- Battle.lua hook переключает на Phase 2 автоматически.
     if Kristal.Config.sideB then
-        self.music = "DEEP_WALKS(Side-b)"
+        self.music = "BLACK_KNIFE_SideB_phase1"
     else
-        self.music = "Knite_Bandage(Side-a)"
+        self.music = "BLACK_KNIFE_SideA_phase1"
     end
     self.background = true
 

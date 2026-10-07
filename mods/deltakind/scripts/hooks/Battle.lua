@@ -2,11 +2,11 @@ local Battle, super = HookSystem.hookScript(Battle)
 
 local MUSIC = {
     side_a = {
-        [1] = "Knite_Bandage(Side-a)",
-        [2] = "See_Hope(Side-a2)",
+        [1] = "BLACK_KNIFE_SideA_phase1",
+        [2] = "BLACK_KNIFE_SideA_phase2",
     },
     side_b = {
-        [1] = "DEEP_WALKS(Side-b)",
+        [1] = "BLACK_KNIFE_SideB_phase1",
         [2] = "The_Black_Death(Side-b2)",
     },
 }
