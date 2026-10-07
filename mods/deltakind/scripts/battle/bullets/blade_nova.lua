@@ -42,15 +42,14 @@ function BladeNova:init(x, y, angle, damage, max_scale)
     self.shake_x, self.shake_y = 0, 0
     self.cur_scale = 0.14
 
+    -- лучи света при покраснении: как в оригинале — высокие мягкие столбы
+    -- вверх/вниз и пара косых
     self.rays = {}
-    for i = 1, 6 do
-        self.rays[i] = {
-            a = self.base_angle + i * (math.pi * 2 / 6) + MathUtils.random(-0.3, 0.3),
-            len = MathUtils.random(40, 80),
-        }
-    end
-    if math.random() < 0.5 then
-        self.rays[#self.rays + 1] = { a = -math.pi / 2, len = 130 }
+    local function addRay(a, len, w) self.rays[#self.rays + 1] = { a = a, len = len, w = w, ph = MathUtils.random(0, 6.28) } end
+    addRay(-math.pi / 2 + MathUtils.random(-0.12, 0.12), MathUtils.random(150, 230), 0.17)
+    addRay(math.pi / 2 + MathUtils.random(-0.12, 0.12), MathUtils.random(120, 190), 0.15)
+    for i = 1, 2 do
+        addRay(-math.pi / 2 + MathUtils.random(-0.9, 0.9), MathUtils.random(90, 150), 0.12)
     end
 
     self.can_graze = true
@@ -128,7 +127,7 @@ function BladeNova:update()
         end
         if self.sprite then
             local b = 0.65 + 0.25 * math.sin(self.red_t * 9)
-            self.sprite:setColor(0.55 + 0.4 * b, 0.12, 0.12, 0.9)
+            self.sprite:setColor(1, 1, 1, 0)
             self.sprite.rotation = self.sprite.rotation + DT * 0.5
         end
         self.trail = {}
@@ -139,13 +138,29 @@ function BladeNova:update()
     super.update(self)
 end
 
-local function ray(a, len, alpha)
-    local w = 0.07
-    Draw.setColor(1, 1, 1, alpha)
-    love.graphics.polygon("fill", 0, 0,
-        math.cos(a - w) * len * 0.35, math.sin(a - w) * len * 0.35,
-        math.cos(a) * len, math.sin(a) * len,
-        math.cos(a + w) * len * 0.35, math.sin(a + w) * len * 0.35)
+local ray_mesh
+local function ray(a, len, alpha, w)
+    -- мягкий луч: яркий у основания, плавно гаснет к концу
+    if not ray_mesh then
+        ray_mesh = love.graphics.newMesh({
+            {0, 0, 0, 0, 1, 1, 1, 1},
+            {1, -1, 0, 0, 1, 1, 1, 0},
+            {1,  1, 0, 0, 1, 1, 1, 0},
+            {0, 0, 0, 0, 1, 1, 1, 1},
+        }, "fan")
+    end
+    love.graphics.push()
+    love.graphics.rotate(a)
+    love.graphics.scale(len, len * w)
+    for pass = 1, 2 do
+        local k = (pass == 1) and 1 or 0.45
+        love.graphics.setColor(1, 1, 1, alpha * (pass == 1 and 0.55 or 1))
+        love.graphics.push()
+        love.graphics.scale(1, k)
+        love.graphics.draw(ray_mesh)
+        love.graphics.pop()
+    end
+    love.graphics.pop()
 end
 
 function BladeNova:draw()
@@ -166,12 +181,29 @@ function BladeNova:draw()
     end
 
     if self:getStage() == "red" then
-        local k = math.min(1, self.red_t / 0.9)
-        local spin = self.red_t * 0.45
+        local k = math.min(1, self.red_t / 0.5)
         for _, r in ipairs(self.rays) do
-            local pulse = 0.85 + 0.15 * math.sin(self.red_t * 8 + r.a * 3)
-            ray(r.a + spin, r.len * (0.4 + 0.6 * k) * pulse, 0.06 + 0.17 * k)
+            local pulse = 0.8 + 0.2 * math.sin(self.red_t * 9 + r.ph)
+            local grow = 1 - (1 - k) * (1 - k)
+            ray(r.a, r.len * grow * pulse, 0.5 * k, r.w)
         end
+        -- красная звезда с белой сердцевиной и гранатом, как в оригинале
+        local rs = Assets.getTexture("bullets/orig/red_star")
+        local wf = Assets.getTexture("bullets/orig/star_g" .. self.group .. "_f2")
+        local b = 0.75 + 0.25 * math.sin(self.red_t * 12)
+        if rs then
+            Draw.setColor(1, 0.1 + 0.15 * b, 0.1, 1)
+            Draw.draw(rs, 0, 0, 0, self.cur_scale * 1.0, self.cur_scale * 1.0, SPR / 2, SPR / 2)
+        end
+        if wf then
+            Draw.setColor(1, 1, 1, 0.95)
+            Draw.draw(wf, 0, 0, 0, self.cur_scale * 0.55, self.cur_scale * 0.55, SPR / 2, SPR / 2)
+        end
+        Draw.setColor(0.75, 0.05, 0.1, 1)
+        local g = self.cur_scale * 9
+        love.graphics.polygon("fill", 0, -g, g * 0.7, 0, 0, g, -g * 0.7, 0)
+        Draw.setColor(1, 1, 1, 0.9)
+        love.graphics.polygon("fill", 0, -g * 0.4, g * 0.28, 0, 0, g * 0.4, -g * 0.28, 0)
     end
     -- «строчная» заливка у больших звёзд в полёте
     if self:getStage() == "fly" and sx > 0.45 then
