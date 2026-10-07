@@ -162,7 +162,7 @@ function BladeSlash:drawRot()
     elseif self.phase == "strike" or self.phase == "fade" then
         love.graphics.setScissor()   -- вспышка выходит далеко за арену
         local k = (self.phase == "strike") and 0 or math.min(self.phase_time / FADE_TIME, 1)
-        local W = 46 * (1 - k * k)
+        local W = 46 * ((1 - k) ^ 1.6) * (1 - 0.25 * k)   -- белеющий клин быстро сужается
         local a = 1 - k * k
         local function wedge(width, r, g, b, alpha)
             local pts, N = {}, 22
@@ -190,11 +190,11 @@ function BladeSlash:drawRot()
         -- тонкая белая линия-послесвечение (как пунктир перед следующим взмахом)
         love.graphics.setScissor()
         local k = math.min(self.phase_time / GLOW_TIME, 1)
-        Draw.setColor(1, 1, 1, 0.6 * (1 - k))
-        love.graphics.setLineWidth(2)
+        Draw.setColor(1, 1, 1, 0.5 * (1 - k))
+        love.graphics.setLineWidth(1.5)
         love.graphics.line(-dx * L, -dy * L, dx * L, dy * L)
-        Draw.setColor(1, 1, 1, 0.2 * (1 - k))
-        love.graphics.setLineWidth(6)
+        Draw.setColor(1, 1, 1, 0.12 * (1 - k))
+        love.graphics.setLineWidth(4)
         love.graphics.line(-dx * L, -dy * L, dx * L, dy * L)
     end
 
