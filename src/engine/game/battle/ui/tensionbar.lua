@@ -602,6 +602,15 @@ local function slantPoly(mode, x, y, w, h, sl)
     love.graphics.polygon(mode, x, y + h, x + w, y + h, x + w + sl, y, x + sl, y)
 end
 
+-- Переливание: чем больше TP, тем чаще полосы света и тем быстрее они бегут.
+local old_update = TensionBar.update
+function TensionBar:update()
+    old_update(self)
+    local p = MathUtils.clamp(self.current / self:getMaxTension(), 0, 1)
+    local speed = 0.15 + 6.0 * p * p          -- циклов в секунду
+    self.shimmer_phase = ((self.shimmer_phase or 0) + DT * speed) % 1
+end
+
 function TensionBar:drawBack()
     local x, y, w = self:getBarX(), self:getBarY(), self:getBarWidth()
     local pal = getPalette()
@@ -688,6 +697,13 @@ function TensionBar:drawFill()
         local sw = math.min(step, fill_width - px)
         local r, g, b = sampleStops(pal.stops, (px + sw / 2) / width)
         local boost = self.maxed and (0.15 + 0.15 * math.sin(now * 10)) or 0
+        -- бегущая полоса света цветом шкалы; период короче при большем TP
+        local period = 150 - 100 * percentage
+        local ph = ((px + sw / 2) / period - (self.shimmer_phase or 0) * 1) % 1
+        local sheen = math.max(0, math.sin(ph * math.pi)) ^ 6 * (0.35 + 0.45 * percentage)
+        r = r + (math.min(1, r * 1.5 + 0.35) - r) * sheen
+        g = g + (math.min(1, g * 1.5 + 0.35) - g) * sheen
+        b = b + (math.min(1, b * 1.5 + 0.35) - b) * sheen
         Draw.setColor(math.min(1, r + boost), math.min(1, g + boost), math.min(1, b + boost), 1)
         slantPoly("fill", x + px, y, sw + 1, h, SLANT)
         px = px + step
