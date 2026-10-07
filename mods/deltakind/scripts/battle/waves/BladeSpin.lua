@@ -14,7 +14,7 @@ local COUNTS_P1 = {1, 2, 2, 3, 3, 4}
 local COUNTS_P2 = {3, 3, 4, 4, 4, 4}
 local ACTIVE_TIME = 0.14
 local FADE_TIME = 0.25
-local PAUSE_TIME = 0.4
+local PAUSE_TIME = 0.25
 local WIDTH = 22
 
 function BladeSpin:onStart()
@@ -22,7 +22,7 @@ function BladeSpin:onStart()
     local phase2 = enemy and enemy.phase == 2
 
     local counts = phase2 and COUNTS_P2 or COUNTS_P1
-    local windup = phase2 and 0.65 or 0.95
+    local windup = phase2 and 0.45 or 0.66
 
     self.time = #counts * (windup + ACTIVE_TIME) + (#counts - 1) * PAUSE_TIME + FADE_TIME + 0.3
 

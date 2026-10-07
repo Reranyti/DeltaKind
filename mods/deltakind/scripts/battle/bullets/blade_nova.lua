@@ -85,9 +85,10 @@ end
 function BladeNova:update()
     self.t = self.t + DT
     local stage = self:getStage()
+    self.sm = (self.wave and self.wave.speed_mult) or 1
 
     if stage == "fly" then
-        self.dist = self.dist + self.speed * DT
+        self.dist = self.dist + self.speed * self.sm * DT
         local wob = math.sin(self.t * 5 + self.phase) * 3
         self.x = self.sx0 + math.cos(self.angle) * self.dist
         self.y = self.sy0 + math.sin(self.angle) * self.dist + wob

@@ -14,13 +14,13 @@ local BladeSplit, super = Class(Wave)
 local CUTS = 7
 local ACTIVE_TIME = 0.12
 local FADE_TIME = 0.25
-local PAUSE_TIME = 0.55
+local PAUSE_TIME = 0.32
 local WIDTH = 10
 
 function BladeSplit:onStart()
     local enemy = self.attacker or Game.battle:getEnemyBattler("kyle")
     local phase2 = enemy and enemy.phase == 2
-    local windup = phase2 and 0.6 or 0.85
+    local windup = phase2 and 0.42 or 0.58
     local arena = Game.battle.arena
 
     self.time = CUTS * (windup + ACTIVE_TIME) + (CUTS - 1) * PAUSE_TIME + 1.4

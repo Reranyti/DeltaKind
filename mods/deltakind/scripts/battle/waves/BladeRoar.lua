@@ -10,8 +10,8 @@
 local BladeRoar, super = Class(Wave)
 
 local STARS = 12
-local STAR_STEP = 0.32
-local WINDUP_FINAL = 1.2
+local STAR_STEP = 0.22
+local WINDUP_FINAL = 0.9
 
 function BladeRoar:onStart()
     local enemy = self.attacker or Game.battle:getEnemyBattler("kyle")
@@ -26,7 +26,7 @@ function BladeRoar:onStart()
     local cx = enemy and (enemy.x - 50) or 520
     local cy = enemy and (enemy.y - 90) or 170
 
-    self.time = STARS * STAR_STEP + 1.0 + 1.5 + 1.1 + 1.0 + WINDUP_FINAL + 1.0
+    self.time = STARS * STAR_STEP + 0.8 + 1.0 + 0.8 + 0.7 + WINDUP_FINAL + 1.0
 
     self.timer:script(function(wait)
         for i = 1, STARS do
@@ -35,7 +35,8 @@ function BladeRoar:onStart()
             if s then s.wave = self end
             wait(STAR_STEP)
         end
-        wait(1.0 + 1.5 + 1.1 + 1.0)
+        wait(0.8 + 1.0 + 0.8 + 0.7)
+        Assets.playSound("knight_drawpower", 1)
 
         -- Финальный разрез через центр поля (почти по вертикали)
         local a = Game.battle.arena

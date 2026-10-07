@@ -21,26 +21,29 @@ local BladeStars, super = Class(Wave)
 local ARENA_W, ARENA_H = 128, 100
 local SLIDE = 66                 -- полный сдвиг арены влево (px)
 local SLIDE_GRADUAL = 0.67       -- доля сдвига, пока дует ветер
-local T_LINE_END = 1.0
-local T_CONE_START = 1.0
-local T_CONE_END = 4.6
-local T_STARS_START = 1.6
-local T_RED = 4.9
-local T_BOOM = 6.1
-local T_END = 8.4
+local F = 0.68                -- ускорение: все времена оригинала × F
+local T_LINE_END = 1.0 * F
+local T_CONE_START = 1.0 * F
+local T_CONE_END = 4.6 * F
+local T_STARS_START = 1.6 * F
+local T_RED = 4.9 * F
+local T_BOOM = 6.1 * F
+local T_END = 8.4 * F
 
 function BladeStars:onStart()
     local enemy = self.attacker or Game.battle:getEnemyBattler("kyle")
     local phase2 = enemy and enemy.phase == 2
 
     local count = phase2 and 20 or 16
-    local step = (4.4 - T_STARS_START) / count
+    local step = (4.4 * F - T_STARS_START) / count
 
     local multiplier =
         (enemy and enemy.getDifficultyMultiplier and enemy:getDifficultyMultiplier()) or 1
     local damage = math.ceil(75 * (1 + (multiplier - 1) * 0.25))
 
     self.stage = "fly"
+    self.speed_mult = 1 / F
+    self.snd_red, self.snd_boom = false, false
     self.clock = 0
     self.time = T_END
 
@@ -55,10 +58,12 @@ function BladeStars:onStart()
 
     self.timer:script(function(wait)
         -- 0.0: пунктирная линия-прицел
+        Assets.playSound("knight_drawpower", 0.8)
         self:spawnBullet("blade_line", tipy, T_LINE_END)
         wait(T_CONE_START)
 
         -- 1.0: конус ветра (вспышка в начале и в конце)
+        Assets.playSound("knight_stretch", 0.9)
         self:spawnBullet("blade_cone", tipx, tipy, math.pi, 700, 0.42, T_CONE_END - T_CONE_START)
         wait(T_STARS_START - T_CONE_START)
 
@@ -68,11 +73,13 @@ function BladeStars:onStart()
             local scale = (math.random() < 0.2) and MathUtils.random(0.78, 0.95) or MathUtils.random(0.52, 0.72)
             local s = self:spawnBullet("blade_nova", tipx, tipy, ang, damage, scale)
             if s then s.wave = self end
+            if i % 3 == 1 then Assets.playSound("knight_jump_quick", 0.35, MathUtils.random(0.9, 1.3)) end
             wait(step)
         end
 
         -- 4.8: толстая белая полоса на высоте центра поля
-        wait(T_CONE_END + 0.2 - (T_STARS_START + count * step))
+        wait(math.max(0.01, T_CONE_END + 0.2 * F - (T_STARS_START + count * step)))
+        Assets.playSound("knight_cut", 0.8)
         self:spawnBullet("blade_line", tipy, 0.2, 10, true)
     end)
 end
@@ -85,8 +92,17 @@ function BladeStars:update()
     -- Стадии звёзд (общие для всех)
     if t >= T_BOOM then
         self.stage = "boom"
+        if not self.snd_boom then
+            self.snd_boom = true
+            Assets.playSound("knight_star_explosion_close", 1)
+            Game.battle:shakeCamera(5, 5, 0.4)
+        end
     elseif t >= T_RED then
         self.stage = "red"
+        if not self.snd_red then
+            self.snd_red = true
+            Assets.playSound("knight_drawpower", 0.9, 1.15)
+        end
     end
 
     -- Ветер: пока дует конус, арену сдувает влево (ускоряясь);

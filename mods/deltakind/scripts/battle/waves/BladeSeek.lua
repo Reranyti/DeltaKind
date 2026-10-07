@@ -17,8 +17,8 @@ function BladeSeek:onStart()
 
     -- Как в оригинале: 10 мечей, интервал и время прицеливания сокращаются
     local count = 10
-    local aim_start = phase2 and 0.8 or 1.0
-    local aim_end = phase2 and 0.4 or 0.55
+    local aim_start = phase2 and 0.6 or 0.72
+    local aim_end = phase2 and 0.32 or 0.42
 
     local multiplier =
         (enemy and enemy.getDifficultyMultiplier and enemy:getDifficultyMultiplier()) or 1
@@ -28,7 +28,7 @@ function BladeSeek:onStart()
     local total = 0
     for i = 1, count do
         local t = MathUtils.lerp(aim_start, aim_end, (i - 1) / (count - 1))
-        total = total + t * 0.8
+        total = total + t * 0.7
     end
     self.time = total + aim_end + 0.3 + 0.9
 
@@ -47,9 +47,10 @@ function BladeSeek:onStart()
             repeat di = math.random(1, 8) until di ~= last_i
             last_i = di
 
+            Assets.playSound("knight_teleport", 0.35, MathUtils.random(1.0, 1.4))
             local b = self:spawnBullet("blade_dart", 0, 0, dirs[di], aim, damage)
             if b then b.wave = self end
-            wait(aim * 0.8)
+            wait(aim * 0.7)
         end
     end)
 end

@@ -15,6 +15,7 @@ local BladeSlash, super = Class(Bullet)
 local FADE_TIME = 0.25
 local GLOW_TIME = 0.35
 local CLIP_MARGIN = 90   -- росчерк виден и за границей арены, как у оригинала
+local last_wind_snd, last_cut_snd = -1, -1
 
 function BladeSlash:init(x, y, angle, length, windup, active, width, damage, spin)
     super.init(self, x, y)
@@ -37,6 +38,10 @@ function BladeSlash:init(x, y, angle, length, windup, active, width, damage, spi
     self:setScale(1, 1)
     self.collider = nil
 
+    if self.windup > 0.1 and love.timer.getTime() - last_wind_snd > 0.15 then
+        last_wind_snd = love.timer.getTime()
+        Assets.playSound(self.spin ~= 0 and "knight_rotatingslash_line" or "knight_stretch", 0.6)
+    end
     self.qs = {}
     for i = 0, 3 do self.qs[i] = Assets.getTexture("bullets/orig/fx_qs_" .. i) end
 end
@@ -59,6 +64,11 @@ function BladeSlash:setPhase(phase)
     self.phase = phase
     self.phase_time = 0
     if phase == "strike" then
+        if love.timer.getTime() - last_cut_snd > 0.05 then
+            last_cut_snd = love.timer.getTime()
+            Assets.playSound(math.random() < 0.5 and "knight_cut" or "knight_cut2", 0.85)
+        end
+        if Game.battle then Game.battle:shakeCamera(2, 2, 1) end
         self.collider = PolygonCollider(self, self:getSlashPoints())
     else
         self.collider = nil
