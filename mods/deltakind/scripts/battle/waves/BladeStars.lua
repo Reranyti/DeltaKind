@@ -53,7 +53,7 @@ function BladeStars:onStart()
     self.ax0, self.ay0 = arena.x, arena.y
 
     -- Кончик меча (вершина конуса) на высоте центра поля
-    local tipx = enemy and (enemy.x - 82) or 438
+    local tipx = enemy and (enemy.x - 64) or 456
     local tipy = self.ay0
 
     self.timer:script(function(wait)
