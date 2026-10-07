@@ -939,9 +939,10 @@ function Kyle:updateAttackAnimation()
     if defending and not self.attack_anim_active then
         self.attack_anim_active = true
 
-        local anim = self.wave_animations[self.current_wave]
-        if anim then
-            self:setAnimation(anim)
+        -- Позы атак отключены: рыцарь остаётся в idle (поза зависала
+        -- на последнем кадре на всю атаку).
+        if not self.roar_timer and self.hurt_timer <= 0 then
+            self:setAnimation("idle")
         end
 
     elseif not defending and self.attack_anim_active then
