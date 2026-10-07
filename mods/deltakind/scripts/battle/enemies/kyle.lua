@@ -933,24 +933,54 @@ Kyle.wave_animations = {
     Crossfire     = "slash"
 }
 
+Kyle.wave_poses = {
+    -- «Звёзды»: меч наставлен на старте ветра, взмах на белой полосе
+    BladeStars = { {"point", 0.5, 1.1}, {"slash", 3.0, 0.8} },
+    -- «Слежка»: быстрый выпад в начале, потом стойка
+    BladeSeek  = { {"rush_clash", 0.0, 0.7}, {"point", 3.0, 0.8} },
+    -- «Разрез поля»: взмах на каждом втором разрезе
+    BladeSplit = { {"slash", 0.2, 0.8}, {"slash", 2.2, 0.8}, {"slash", 4.2, 0.8} },
+    -- «Вращающийся разрез»: взмахи в начале и в середине
+    BladeSpin  = { {"slash", 0.2, 0.9}, {"flurry", 3.0, 1.0} },
+    BladeLines = { {"slash", 0.3, 0.8} },
+    BladeCross = { {"flurry", 0.3, 1.0} },
+    -- «Рёв»: рёв в начале, взмах перед финальным разрезом
+    BladeRoar  = { {"roaring", 0.0, 1.4}, {"slash", 4.8, 1.2} },
+}
+
 function Kyle:updateAttackAnimation()
     local defending = Game.battle and Game.battle.state == "DEFENDING"
 
     if defending and not self.attack_anim_active then
         self.attack_anim_active = true
-
-        -- Позы атак отключены: рыцарь остаётся в idle (поза зависала
-        -- на последнем кадре на всю атаку).
-        if not self.roar_timer and self.hurt_timer <= 0 then
-            self:setAnimation("idle")
-        end
-
+        self.pose_t = 0
+        self.pose_idx = 1
+        self.pose_end = nil
     elseif not defending and self.attack_anim_active then
         self.attack_anim_active = false
-
+        self.pose_end = nil
         -- Не перебиваем анимацию получения урона.
-        if self.hurt_timer <= 0 then
+        if self.hurt_timer <= 0 and not self.roar_timer then
             self:setAnimation("idle")
+        end
+    end
+
+    -- Позы привязаны к моментам атаки: {поза, старт (с), длительность (с)};
+    -- после позы рыцарь возвращается в idle (поза не висит на последнем кадре).
+    if defending then
+        self.pose_t = (self.pose_t or 0) + DT
+        local seq = Kyle.wave_poses[self.current_wave]
+        local cur = seq and seq[self.pose_idx]
+        if cur and self.pose_t >= cur[2] and not self.pose_end then
+            self:setAnimation(cur[1])
+            self.pose_end = cur[2] + cur[3]
+        end
+        if self.pose_end and self.pose_t >= self.pose_end then
+            self.pose_end = nil
+            self.pose_idx = (self.pose_idx or 1) + 1
+            if self.hurt_timer <= 0 and not self.roar_timer then
+                self:setAnimation("idle")
+            end
         end
     end
 
