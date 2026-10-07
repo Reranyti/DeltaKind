@@ -632,7 +632,7 @@ local old_update = TensionBar.update
 function TensionBar:update()
     old_update(self)
     local p = MathUtils.clamp(self.current / self:getMaxTension(), 0, 1)
-    local speed = 0.15 + 6.0 * p * p          -- циклов в секунду
+    local speed = 0.12 + 3.2 * p * p          -- циклов в секунду
     self.shimmer_phase = ((self.shimmer_phase or 0) + DT * speed) % 1
 end
 
@@ -720,12 +720,12 @@ function TensionBar:drawFill()
     local px = 0
     while px < fill_width do
         local sw = math.min(step, fill_width - px)
-        local r, g, b = sampleStops(pal.stops, (px + sw / 2) / width)
+        local r, g, b = sampleStops(pal.stops, (px + sw / 2) / math.max(fill_width, 90))
         local boost = self.maxed and (0.15 + 0.15 * math.sin(now * 10)) or 0
         -- бегущая полоса света цветом шкалы; период короче при большем TP
-        local period = 150 - 100 * percentage
+        local period = 170 - 70 * percentage
         local ph = ((px + sw / 2) / period - (self.shimmer_phase or 0) * 1) % 1
-        local sheen = math.max(0, math.sin(ph * math.pi)) ^ 6 * (0.35 + 0.45 * percentage)
+        local sheen = (0.5 - 0.5 * math.cos(ph * 2 * math.pi)) ^ 2 * (0.4 + 0.4 * percentage)
         -- полоска — насыщенный яркий оттенок шкалы (не белый): цвет доводится до полной яркости
         local tr, tg, tb = sampleStops(pal.stops, math.min(1, (px + sw / 2) / width * 0.6 + 0.0))
         local mx = math.max(tr, tg, tb, 0.2)
