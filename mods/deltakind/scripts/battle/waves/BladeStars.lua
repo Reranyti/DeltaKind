@@ -63,7 +63,7 @@ function BladeStars:onStart()
         wait(T_CONE_START)
 
         -- 1.0: конус ветра (вспышка в начале и в конце)
-        self:spawnBullet("blade_cone", tipx, tipy, math.pi, 700, 0.42, T_CONE_END - T_CONE_START)
+        self:spawnBullet("blade_cone", tipx, tipy, math.pi, 520, 0.30, T_CONE_END - T_CONE_START)
         wait(T_STARS_START - T_CONE_START)
 
         -- 1.6–4.4: звёзды по одной веером внутри конуса

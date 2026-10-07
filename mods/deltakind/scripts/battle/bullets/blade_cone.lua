@@ -43,9 +43,11 @@ local function coneMesh(self, tex, du, dv, spread_mul)
         { math.cos(a + sp) * l, math.sin(a + sp) * l },
     }
     local verts = {}
-    for _, p in ipairs(pts) do
+    -- текстура плотнее (×2), чтобы дымка не растягивалась; к дальнему краю конус тает
+    for i, p in ipairs(pts) do
         local wx, wy = self.x + p[1], self.y + p[2]
-        verts[#verts + 1] = { p[1], p[2], wx / SCREEN_WIDTH + du, wy / SCREEN_HEIGHT + dv, 1, 1, 1, 1 }
+        local a = (i == 1) and 1 or 0.2
+        verts[#verts + 1] = { p[1], p[2], wx / SCREEN_WIDTH * 2 + du, wy / SCREEN_HEIGHT * 2 + dv, 1, 1, 1, a }
     end
     local mesh = love.graphics.newMesh(verts, "fan", "stream")
     mesh:setTexture(tex)
@@ -58,10 +60,14 @@ function BladeCone:draw()
     local flash = (self.t < FLASH) or (self.t > self.life - FLASH * 1.4)
 
     if flash then
-        Draw.setColor(1, 0.85, 1, 0.8)
-        love.graphics.polygon("fill", 0, 0,
-            math.cos(self.angle - sp) * l, math.sin(self.angle - sp) * l,
-            math.cos(self.angle + sp) * l, math.sin(self.angle + sp) * l)
+        -- вспышка: ярко у кончика, к дальнему краю тает (без жёсткого края)
+        local m = love.graphics.newMesh({
+            { 0, 0, 0, 0, 1, 0.85, 1, 0.85 },
+            { math.cos(self.angle - sp) * l, math.sin(self.angle - sp) * l, 0, 0, 1, 0.85, 1, 0.08 },
+            { math.cos(self.angle + sp) * l, math.sin(self.angle + sp) * l, 0, 0, 1, 0.85, 1, 0.08 },
+        }, "fan", "stream")
+        Draw.setColor(1, 1, 1, 1)
+        love.graphics.draw(m)
     else
         local k = math.min(1, (self.t - FLASH) / 0.35)
         if self.tex_smoke then
