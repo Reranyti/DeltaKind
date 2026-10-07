@@ -11,6 +11,9 @@
 
 local BladeSeek, super = Class(Wave)
 
+local SIDE = 104        -- сторона квадратной арены
+local SPIN_IN = 0.8     -- арена влетает: маленький вращающийся квадрат растёт до нормы
+
 function BladeSeek:onStart()
     local enemy = self.attacker or Game.battle:getEnemyBattler("kyle")
     local phase2 = enemy and enemy.phase == 2
@@ -30,10 +33,11 @@ function BladeSeek:onStart()
         local t = MathUtils.lerp(aim_start, aim_end, (i - 1) / (count - 1))
         total = total + t * 0.7
     end
-    self.time = total + aim_end + 0.3 + 0.9
+    self.time = total + aim_end + 0.3 + 0.9 + SPIN_IN
 
     -- Маленькая квадратная арена, как в оригинале
-    self:setArenaSize(104, 104)
+    self:setArenaSize(24, 24)
+    self.clock = 0
 
     -- 8 сторон света (кардинальные и интеркардинальные)
     local dirs = {}
@@ -41,6 +45,7 @@ function BladeSeek:onStart()
     local last_i = nil
 
     self.timer:script(function(wait)
+        wait(SPIN_IN)
         for i = 1, count do
             local aim = MathUtils.lerp(aim_start, aim_end, (i - 1) / (count - 1))
             local di
@@ -52,6 +57,22 @@ function BladeSeek:onStart()
             wait(aim * 0.7)
         end
     end)
+end
+
+function BladeSeek:update()
+    super.update(self)
+    self.clock = (self.clock or 0) + DT
+    local arena = Game.battle.arena
+    if not arena then return end
+    local k = math.min(1, self.clock / SPIN_IN)
+    local e = 1 - (1 - k) ^ 3
+    local size = 24 + (SIDE - 24) * e
+    arena:setSize(size, size)
+    arena.rotation = (1 - e) * math.pi * 2
+    if k >= 1 and not self.arena_done then
+        self.arena_done = true
+        arena.rotation = 0
+    end
 end
 
 return BladeSeek
