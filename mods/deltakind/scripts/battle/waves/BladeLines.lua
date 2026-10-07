@@ -16,7 +16,7 @@ local COUNTS_P2 = {3, 3, 4, 4, 4, 4}
 
 local ACTIVE_TIME = 0.12
 local FADE_TIME = 0.25
-local PAUSE_TIME = 0.5
+local PAUSE_TIME = 0.3
 local MIN_ANGLE_GAP = 25 -- градусов между линиями (с учётом разброса)
 
 --- Углы (радианы) для n линий: равномерно по полуокружности + случайный сдвиг и разброс.
@@ -40,7 +40,7 @@ function BladeLines:onStart()
     local is_phase2 = enemy and enemy.phase == 2
 
     local counts = is_phase2 and COUNTS_P2 or COUNTS_P1
-    local windup = is_phase2 and 0.4 or 0.7
+    local windup = is_phase2 and 0.38 or 0.5
 
     -- Волна кончается после затухания последнего удара (+ небольшой запас)
     self.time = #counts * (windup + ACTIVE_TIME)
@@ -68,14 +68,14 @@ function BladeLines:onStart()
                 sx, sy = arena.x, arena.y
             end
 
-            -- TODO: общий звук начала телеграфа (файла пока нет)
-            for _, angle in ipairs(pickAngles(count)) do
+            if enemy and enemy.playPose then enemy:playPose("slash", windup + 0.15) end
+            for k, angle in ipairs(pickAngles(count)) do
                 self:spawnBullet(
                     "blade_slash",
                     sx, sy,
                     angle, length,
                     windup, ACTIVE_TIME,
-                    nil, damage
+                    nil, damage, 0, "rot", k == 1
                 )
             end
 

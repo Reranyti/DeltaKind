@@ -19,7 +19,7 @@ local STRIKES = {"h", "v", "h", "v", "cross"}
 
 local ACTIVE_TIME = 0.12
 local FADE_TIME = 0.25
-local PAUSE_TIME = 0.4
+local PAUSE_TIME = 0.3
 local BAND_WIDTH = 50    -- толщина разреза
 local OVERSHOOT = 40     -- насколько линии выступают за край арены
 local MAX_REACH = 0.6    -- щель не дальше этой доли размера арены от души
@@ -38,7 +38,7 @@ function BladeCross:onStart()
     local is_phase2 = enemy and enemy.phase == 2
 
     local gap = is_phase2 and 50 or 70
-    local windup = is_phase2 and 0.5 or 0.8
+    local windup = is_phase2 and 0.4 or 0.55
 
     -- Волна кончается после затухания последнего удара (+ небольшой запас)
     self.time = #STRIKES * (windup + ACTIVE_TIME)
@@ -64,10 +64,10 @@ function BladeCross:onStart()
         local half = (to - from) / 2
         if axis == "h" then
             self:spawnBullet("blade_slash", mid, fixed, 0, half,
-                windup, ACTIVE_TIME, BAND_WIDTH, damage)
+                windup, ACTIVE_TIME, BAND_WIDTH, damage, 0, "rot")
         else
             self:spawnBullet("blade_slash", fixed, mid, math.pi / 2, half,
-                windup, ACTIVE_TIME, BAND_WIDTH, damage)
+                windup, ACTIVE_TIME, BAND_WIDTH, damage, 0, "rot")
         end
     end
 
@@ -98,7 +98,7 @@ function BladeCross:onStart()
             local gx = pickNear(sx, reach_x, left + gap / 2, right - gap / 2)
             local gy = pickNear(sy, reach_y, top + gap / 2, bottom - gap / 2)
 
-            -- TODO: общий звук начала телеграфа (файла пока нет)
+            if enemy and enemy.playPose then enemy:playPose("flurry", windup + 0.15) end
             if kind == "h" then
                 -- полоса накрывает душу (с небольшим разбросом), щель по x
                 spawnCut("h", sy + MathUtils.random(-BAND_WIDTH / 3, BAND_WIDTH / 3), gx)
