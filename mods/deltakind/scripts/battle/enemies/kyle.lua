@@ -934,8 +934,8 @@ Kyle.wave_animations = {
 }
 
 Kyle.wave_poses = {
-    -- «Звёзды»: меч наставлен на старте ветра, взмах на белой полосе
-    BladeStars = { {"point", 0.5, 1.1}, {"slash", 3.0, 0.8} },
+    -- «Звёзды»: рука вытянута, пока из пальца бьёт луч (0.68–3.13 с), потом возврат
+    BladeStars = { {"point_in", 0.4, 2.73, "point_out"}, {"slash", 3.3, 0.8} },
     -- «Слежка»: быстрый выпад в начале, потом стойка
     BladeSeek  = { {"rush_clash", 0.0, 0.7}, {"point", 3.0, 0.8} },
     -- «Разрез поля»: взмах на каждом втором разрезе
@@ -976,10 +976,11 @@ function Kyle:updateAttackAnimation()
             self.pose_end = cur[2] + cur[3]
         end
         if self.pose_end and self.pose_t >= self.pose_end then
+            local prev = Kyle.wave_poses[self.current_wave][self.pose_idx]
             self.pose_end = nil
             self.pose_idx = (self.pose_idx or 1) + 1
             if self.hurt_timer <= 0 and not self.roar_timer then
-                self:setAnimation("idle")
+                self:setAnimation(prev and prev[4] or "idle")
             end
         end
     end

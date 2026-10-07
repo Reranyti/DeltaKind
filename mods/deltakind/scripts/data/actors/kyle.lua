@@ -25,6 +25,10 @@ function actor:init()
 
         -- Атаки
         ["point"]        = {"point", 0.12, false},       -- звёзды
+        -- вытянутая рука: разгон (кадры 1-5, остаётся на 5-м), удержание пока бьёт луч
+        ["point_in"]     = {"point", 0.07, false, frames = {1, 2, 3, 4, 5}},
+        -- возврат руки и в стойку
+        ["point_out"]    = {"point", 0.09, false, frames = {6, 7, 8, 9}, next = "idle"},
         ["slash"]        = {"slash", 0.14, false},
         ["flurry"]       = {"flurry", 0.07, true},
         ["rush_clash"]   = {"rush_clash", 0.07, true},
