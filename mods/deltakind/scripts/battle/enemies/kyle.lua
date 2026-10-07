@@ -61,11 +61,12 @@ function Kyle:init()
 
     self.waves = {
         "BladeStars",
+        "BladeSeek",
+        "BladeSplit",
+        "BladeTunnel",
+        "BladeSpin",
         "BladeLines",
         "BladeCross",
-        "BladeSeek",
-        "BladeSpin",
-        "BladeSplit",
         "CircleBullets",
         "RotatingGrid",
         "Saw",
