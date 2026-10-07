@@ -19,7 +19,7 @@ local DELTAKIND_MAX_TENSION = 750
 -- VISUAL SETTINGS
 -- =========================================================
 
-local SCREEN_MARGIN = 36
+local SCREEN_MARGIN = 56
 local BAR_HEIGHT = 18
 local BAR_Y = 24
 local TEXT_GAP = 7
@@ -624,6 +624,18 @@ function TensionBar:drawBack()
         local tx = x + w * i / 10
         love.graphics.line(tx, y + h, tx + SLANT, y)
     end
+
+    -- надпись «TP» слева от шкалы (цвет стороны, с тёмной обводкой)
+    love.graphics.setFont(self.font)
+    local sc = 1.6
+    local ty = y + (h - self.font:getHeight() * sc) / 2
+    local tx = x - 6 - self.font:getWidth("TP") * sc
+    Draw.setColor(0, 0, 0, 1)
+    for _, o in ipairs({ {-1.5, 0}, {1.5, 0}, {0, -1.5}, {0, 1.5} }) do
+        love.graphics.print("TP", tx + o[1], ty + o[2], 0, sc, sc)
+    end
+    Draw.setColor(ac[1], ac[2], ac[3], 1)
+    love.graphics.print("TP", tx, ty, 0, sc, sc)
     Draw.setColor(1, 1, 1, 1)
 end
 
