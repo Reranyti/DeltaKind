@@ -14,7 +14,7 @@ local BladeSlash, super = Class(Bullet)
 
 local FADE_TIME = 0.25
 local GLOW_TIME = 0.35
-local CLIP_MARGIN = 90   -- росчерк виден и за границей арены, как у оригинала
+local CLIP_MARGIN = 0    -- росчерк не выходит за границу арены
 local last_wind_snd, last_cut_snd = -1, -1
 
 function BladeSlash:init(x, y, angle, length, windup, active, width, damage, spin, style, disc)
@@ -160,7 +160,7 @@ function BladeSlash:drawRot()
             love.graphics.line(-dx * L, -dy * L, dx * L, dy * L)
         end
     elseif self.phase == "strike" or self.phase == "fade" then
-        love.graphics.setScissor()   -- вспышка выходит далеко за арену
+        clipArena()   -- вспышка не выходит за границу арены
         local k = (self.phase == "strike") and 0 or math.min(self.phase_time / FADE_TIME, 1)
         local W = 46 * ((1 - k) ^ 1.6) * (1 - 0.25 * k)   -- белеющий клин быстро сужается
         local a = 1 - k * k
@@ -188,7 +188,7 @@ function BladeSlash:drawRot()
         wedge(W * 0.42, 1, 0.82 + 0.18 * wk, 0.86 + 0.14 * wk, a)
     elseif self.phase == "glow" then
         -- тонкая белая линия-послесвечение (как пунктир перед следующим взмахом)
-        love.graphics.setScissor()
+        clipArena()
         local k = math.min(self.phase_time / GLOW_TIME, 1)
         Draw.setColor(1, 1, 1, 0.5 * (1 - k))
         love.graphics.setLineWidth(1.5)
