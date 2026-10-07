@@ -568,7 +568,7 @@ end
 -- C — зелёный→чёрный. stops: позиция 0..1 вдоль шкалы.
 local PALETTES = {
     A = { accent = {0.55, 0.95, 1.0}, back = {0.01, 0.02, 0.04},
-          stops = { {0, {0.15, 0.85, 1.0}}, {0.5, {1.0, 0.38, 0.78}}, {1, {0.35, 1.0, 0.5}} } },
+          stops = { {0, {0.15, 0.85, 1.0}}, {0.45, {1.0, 0.38, 0.78}}, {0.72, {1.0, 0.75, 0.5}}, {1, {0.35, 1.0, 0.5}} } },
     B = { accent = {0.35, 0.55, 1.0}, back = {0.0, 0.0, 0.03},
           stops = { {0, {0.25, 0.5, 1.0}}, {0.5, {0.08, 0.18, 0.55}}, {1, {0.0, 0.005, 0.03}} } },
     C = { accent = {0.35, 1.0, 0.5}, back = {0.0, 0.02, 0.0},
@@ -582,6 +582,31 @@ local function getPalette()
     return PALETTES.A
 end
 
+local function rgb2hsv(r, g, b)
+    local mx, mn = math.max(r, g, b), math.min(r, g, b)
+    local d = mx - mn
+    local h = 0
+    if d > 1e-6 then
+        if mx == r then h = ((g - b) / d) % 6
+        elseif mx == g then h = (b - r) / d + 2
+        else h = (r - g) / d + 4 end
+        h = h / 6
+    end
+    return h, (mx > 0) and d / mx or 0, mx
+end
+
+local function hsv2rgb(h, s, v)
+    local i = math.floor(h * 6)
+    local f = h * 6 - i
+    local p, q, t = v * (1 - s), v * (1 - f * s), v * (1 - (1 - f) * s)
+    i = i % 6
+    if i == 0 then return v, t, p elseif i == 1 then return q, v, p
+    elseif i == 2 then return p, v, t elseif i == 3 then return p, q, v
+    elseif i == 4 then return t, p, v else return v, p, q end
+end
+
+-- Переход по RGB со ступеньками-промежуточными цветами: розовый → зелёный идёт
+-- через тёплый персиковый, а не через серый.
 local function sampleStops(stops, t)
     t = MathUtils.clamp(t, 0, 1)
     for i = 1, #stops - 1 do
@@ -589,7 +614,7 @@ local function sampleStops(stops, t)
         local t1, c1 = stops[i + 1][1], stops[i + 1][2]
         if t <= t1 then
             local k = (t - t0) / math.max(1e-6, t1 - t0)
-            k = k * k * (3 - 2 * k)   -- плавный переход между цветами
+            k = k * k * (3 - 2 * k)
             return c0[1] + (c1[1] - c0[1]) * k, c0[2] + (c1[2] - c0[2]) * k, c0[3] + (c1[3] - c0[3]) * k
         end
     end
@@ -701,9 +726,13 @@ function TensionBar:drawFill()
         local period = 150 - 100 * percentage
         local ph = ((px + sw / 2) / period - (self.shimmer_phase or 0) * 1) % 1
         local sheen = math.max(0, math.sin(ph * math.pi)) ^ 6 * (0.35 + 0.45 * percentage)
-        r = r + (math.min(1, r * 1.5 + 0.35) - r) * sheen
-        g = g + (math.min(1, g * 1.5 + 0.35) - g) * sheen
-        b = b + (math.min(1, b * 1.5 + 0.35) - b) * sheen
+        -- полоска — насыщенный яркий оттенок шкалы (не белый): цвет доводится до полной яркости
+        local tr, tg, tb = sampleStops(pal.stops, math.min(1, (px + sw / 2) / width * 0.6 + 0.0))
+        local mx = math.max(tr, tg, tb, 0.2)
+        local ar, ag, ab = ac[1], ac[2], ac[3]
+        tr, tg, tb = (tr / mx) * 0.6 + ar * 0.4, (tg / mx) * 0.6 + ag * 0.4, (tb / mx) * 0.6 + ab * 0.4
+        local k = math.min(1, sheen * 1.6)
+        r, g, b = r + (tr - r) * k, g + (tg - g) * k, b + (tb - b) * k
         Draw.setColor(math.min(1, r + boost), math.min(1, g + boost), math.min(1, b + boost), 1)
         slantPoly("fill", x + px, y, sw + 1, h, SLANT)
         px = px + step
