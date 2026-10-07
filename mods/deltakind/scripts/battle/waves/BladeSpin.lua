@@ -44,7 +44,7 @@ function BladeSpin:onStart()
             local spin = (math.random() < 0.5 and -1 or 1) * MathUtils.random(7, 10)
             for k = 1, count do
                 local ang = base + (k - 1) * (math.pi / count)
-                self:spawnBullet("blade_slash", sx, sy, ang, length, windup, ACTIVE_TIME, WIDTH, damage, spin)
+                self:spawnBullet("blade_slash", sx, sy, ang, length, windup, ACTIVE_TIME, WIDTH, damage, spin, "rot", k == 1)
             end
 
             wait(windup + ACTIVE_TIME)

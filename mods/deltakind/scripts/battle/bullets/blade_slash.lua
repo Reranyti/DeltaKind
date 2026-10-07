@@ -17,7 +17,7 @@ local GLOW_TIME = 0.35
 local CLIP_MARGIN = 90   -- росчерк виден и за границей арены, как у оригинала
 local last_wind_snd, last_cut_snd = -1, -1
 
-function BladeSlash:init(x, y, angle, length, windup, active, width, damage, spin)
+function BladeSlash:init(x, y, angle, length, windup, active, width, damage, spin, style, disc)
     super.init(self, x, y)
 
     self.angle = angle or 0
@@ -27,6 +27,9 @@ function BladeSlash:init(x, y, angle, length, windup, active, width, damage, spi
     self.slash_width = width or 28
     self.damage = damage or 200
     self.spin = spin or 0
+    self.style = style or "white"   -- "rot" = красный «Вращающийся разрез» оригинала
+    self.disc = disc            -- рисовать тёмно-красный круг вокруг центра взмаха
+    self.dots_time = (self.style == "rot") and math.min(0.3, self.windup * 0.4) or 0
 
     self.phase = "windup"
     self.phase_time = 0
@@ -80,8 +83,8 @@ function BladeSlash:update()
     self.pulse = self.pulse + DT
 
     if self.phase == "windup" then
-        if self.spin ~= 0 then
-            local progress = math.min(self.phase_time / self.windup, 1)
+        if self.spin ~= 0 and self.phase_time > self.dots_time then
+            local progress = math.min((self.phase_time - self.dots_time) / math.max(0.05, self.windup - self.dots_time), 1)
             self.angle = self.angle + self.spin * DT * (1 - progress) * (1 - progress)
         end
         if self.phase_time >= self.windup then self:setPhase("strike") end
@@ -105,7 +108,95 @@ function BladeSlash:drawStreak(frame, thick, alpha)
     return true
 end
 
+-- Красный разрез оригинала: пунктир → красные линии-полосы с тёмным кругом →
+-- вспышка-клин (красный с розово-белой сердцевиной), выходящий за арену.
+function BladeSlash:drawRot()
+    local dx, dy = math.cos(self.angle), math.sin(self.angle)
+    local nx, ny = -dy, dx
+    local L = self.length
+    local arena = Game.battle and Game.battle.arena
+    local old_sx, old_sy, old_sw, old_sh = love.graphics.getScissor()
+
+    local function clipArena()
+        if arena then
+            love.graphics.setScissor(math.floor(arena:getLeft()), math.floor(arena:getTop()),
+                math.ceil(arena:getRight() - arena:getLeft()), math.ceil(arena:getBottom() - arena:getTop()))
+        end
+    end
+
+    if self.phase == "windup" then
+        clipArena()
+        local t = self.phase_time
+        if t < self.dots_time then
+            -- пунктирная линия-подсказка
+            Draw.setColor(1, 1, 1, 0.55 * math.min(1, t / 0.1))
+            love.graphics.setLineWidth(1)
+            for d = -L, L, 9 do
+                love.graphics.line(dx * d, dy * d, dx * (d + 4), dy * (d + 4))
+            end
+        else
+            local k = math.min((t - self.dots_time) / math.max(0.05, self.windup - self.dots_time), 1)
+            if self.disc then
+                -- тёмно-красный круг вокруг центра взмаха
+                local R = 64 * (0.6 + 0.4 * k)
+                local verts = { { 0, 0, 0, 0, 0.6, 0, 0, 0.7 } }
+                for i = 0, 28 do
+                    local a = i / 28 * math.pi * 2
+                    verts[#verts + 1] = { math.cos(a) * R, math.sin(a) * R, 0, 0, 0.35, 0, 0, 0.12 }
+                end
+                love.graphics.draw(love.graphics.newMesh(verts, "fan", "stream"))
+            end
+            -- линия: тёмная полоса с яркими красными краями
+            local h = 5 + 2 * k
+            Draw.setColor(0.38, 0, 0, 0.85)
+            love.graphics.polygon("fill", -dx * L + nx * h, -dy * L + ny * h, dx * L + nx * h, dy * L + ny * h,
+                dx * L - nx * h, dy * L - ny * h, -dx * L - nx * h, -dy * L - ny * h)
+            Draw.setColor(1, 0.12, 0.12, 0.95)
+            love.graphics.setLineWidth(1.5)
+            love.graphics.line(-dx * L + nx * h, -dy * L + ny * h, dx * L + nx * h, dy * L + ny * h)
+            love.graphics.line(-dx * L - nx * h, -dy * L - ny * h, dx * L - nx * h, dy * L - ny * h)
+            Draw.setColor(1, 0.4, 0.4, 0.35 + 0.3 * k)
+            love.graphics.setLineWidth(1)
+            love.graphics.line(-dx * L, -dy * L, dx * L, dy * L)
+        end
+    elseif self.phase == "strike" or self.phase == "fade" then
+        love.graphics.setScissor()   -- вспышка выходит далеко за арену
+        local k = (self.phase == "strike") and 0 or math.min(self.phase_time / FADE_TIME, 1)
+        local W = 46 * (1 - k * k)
+        local a = 1 - k * k
+        local function wedge(width, r, g, b, alpha)
+            local pts, N = {}, 22
+            for i = 0, N do
+                local sgn = (i / N) * 2 - 1
+                local hw = width * 0.5 * (1 - math.abs(sgn)) ^ 0.55
+                pts[#pts + 1] = { dx * L * sgn + nx * hw, dy * L * sgn + ny * hw }
+            end
+            for i = N, 0, -1 do
+                local sgn = (i / N) * 2 - 1
+                local hw = width * 0.5 * (1 - math.abs(sgn)) ^ 0.55
+                pts[#pts + 1] = { dx * L * sgn - nx * hw, dy * L * sgn - ny * hw }
+            end
+            local flat = {}
+            for _, p in ipairs(pts) do flat[#flat + 1] = p[1]; flat[#flat + 1] = p[2] end
+            Draw.setColor(r, g, b, alpha)
+            love.graphics.polygon("fill", unpack(flat))
+        end
+        wedge(W * 1.5, 1, 0.05, 0.05, 0.55 * a)   -- красный ореол
+        wedge(W, 1, 0.12, 0.12, a)                  -- красное тело
+        wedge(W * 0.42, 1, 0.82, 0.86, a)           -- розово-белая сердцевина
+    end
+
+    love.graphics.setScissor(old_sx, old_sy, old_sw, old_sh)
+    love.graphics.setLineWidth(1)
+    Draw.setColor(1, 1, 1, 1)
+end
+
 function BladeSlash:draw()
+    if self.style == "rot" then
+        self:drawRot()
+        Draw.setColor(1, 1, 1, 1)
+        return
+    end
     local dx, dy = math.cos(self.angle), math.sin(self.angle)
     local x1, y1 = -dx * self.length, -dy * self.length
     local x2, y2 = dx * self.length, dy * self.length
